@@ -47,15 +47,15 @@ export class FloatingMenu extends React.PureComponent<any, any> {
           />
 
           <CustomButton label="Copy" onClick={this.props.copyRichHandler} />
-          <CustomButton label="Copy without formatting" onClick={this.props.copyPlainHandler} />
+          <CustomButton label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
 
           <CustomButton label="Paste" onClick={() => {
             this.props.pasteHandler();
           }}
           />
-          <CustomButton label="Paste as plain text" onClick={this.props.pastePlainHandler} />
+          <CustomButton label="Paste As Plain Text" onClick={this.props.pastePlainHandler} />
           <CustomButton
-            label="Paste as Reference"
+            label="Paste As Reference"
             onClick={() => {
               this.props.pasteAsReferenceHandler();
             }}

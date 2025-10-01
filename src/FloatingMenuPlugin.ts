@@ -1,5 +1,4 @@
 // A generic Floating Menu ProseMirror Plugin
-// [FS] IRAD-1528 2021-08-02
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { Schema, Slice } from 'prosemirror-model';
 import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';

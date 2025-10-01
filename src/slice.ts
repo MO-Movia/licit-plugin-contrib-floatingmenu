@@ -1,4 +1,3 @@
-// [FS] IRAD-1085 2020-10-09
 import {EditorView} from 'prosemirror-view';
 import {EditorState} from 'prosemirror-state';
 
