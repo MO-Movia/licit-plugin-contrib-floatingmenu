@@ -1,0 +1,56 @@
+/* Wrapper for each paragraph hamburger */
+.pm-hamburger-wrapper {
+  position: relative;
+  float: right;
+}
+
+/* Hamburger is hidden by default */
+.pm-hamburger {
+  position: absolute;
+  right: 0;
+  top: 0;
+  cursor: pointer;
+  margin-right: 4px;
+  color: #555;
+  font-size: 14px;
+  user-select: none;
+  opacity: 0;               /* hidden initially */
+  transition: opacity 0.18s ease-in-out;
+}
+
+/* Show hamburger only when hovering the paragraph */
+.ProseMirror p:hover .pm-hamburger {
+  opacity: 1;
+}
+
+/* Optional hover effect */
+.pm-hamburger:hover {
+  color: black;
+}
+
+
+
+.context-menu {
+  position: absolute; /* positioned by createPopUp */
+  background: white;
+  border: 1px solid #ccc;
+  border-radius: 6px;
+  padding: 6px 8px;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  z-index: 10000;
+
+  display: flex;
+  flex-direction: column;
+
+  /* 👇 important fix */
+  min-width: 180px;
+  min-height: 40px;
+}
+
+
+.context-menu__items {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
