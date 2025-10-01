@@ -1,8 +1,9 @@
 import {EditorView} from 'prosemirror-view';
 import {EditorState} from 'prosemirror-state';
+import {Node} from 'prosemirror-model';
 
 let docSlices = new Array(0);
-let sliceRuntime;
+let sliceRuntime: FloatRuntime;
 
 export interface SliceModel {
   name: string;
@@ -13,6 +14,12 @@ export interface SliceModel {
   from: string;
   to: string;
   ids: string[];
+}
+
+export interface FloatRuntime {
+  createSlice(slice: SliceModel): Promise<SliceModel>;
+
+  retrieveSlices(): Promise<SliceModel[]>;
 }
 
 export function setSliceRuntime(runtime) {
@@ -45,10 +52,9 @@ export function setSliceAtrrs(view: EditorView) {
   const result = getdocSlices();
   let tr = view.state.tr;
   result.forEach((obj) => {
-    view.state.doc.descendants((nodeactual: any, pos) => {
+    view.state.doc.descendants((nodeactual: Node, pos) => {
       if (nodeactual?.attrs?.objectId === obj?.from) {
-        // let node = view.state.doc.nodeAt(obj.from);
-        const newattrs = {...(nodeactual ? nodeactual.attrs : {})};
+      const newattrs = { ...nodeactual.attrs };
         if (newattrs) {
             const isDeco = { ...(newattrs.isDeco || {}) };
             isDeco.isSlice = true;

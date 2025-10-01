@@ -2,4 +2,5 @@
 /bin
 /dist
 /coverage
-/src/*.test
+/src/**/*.test.ts
+/src/**/*.test.tsx

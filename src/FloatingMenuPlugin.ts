@@ -1,6 +1,6 @@
 // A generic Floating Menu ProseMirror Plugin
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
-import { Schema, Slice } from 'prosemirror-model';
+import { Node, Schema, Slice } from 'prosemirror-model';
 import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
 import {
   createPopUp,
@@ -10,9 +10,9 @@ import {
 import { FloatingMenu } from './FloatingPopup';
 import {v4 as uuidv4} from 'uuid';
 import {insertReference} from '@mo/licit-referencing';
-import { addSliceToList, getDocumentslices, setSliceAtrrs, setSliceRuntime, setSlices } from './slice';
+import { addSliceToList, FloatRuntime, getDocumentslices, setSliceAtrrs, setSliceRuntime, setSlices } from './slice';
 
-const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
+export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 interface SliceModel {
   name: string;
   description: string;
@@ -22,12 +22,12 @@ interface SliceModel {
   from: string;
   to: string;
   ids: string[];
-} 
+}
 
 export class FloatingMenuPlugin extends Plugin {
   _popUpHandle: PopUpHandle | null = null;
-  _view: EditorView | null = null; 
-  constructor(sliceRuntime: any) {
+  _view: EditorView | null = null;
+  constructor(sliceRuntime: FloatRuntime) {
     super({
       key: CMPluginKey,
       state: {
@@ -68,11 +68,11 @@ export class FloatingMenuPlugin extends Plugin {
           if (plugin._popUpHandle) {
             plugin._popUpHandle.close(null);
             plugin._popUpHandle = null;
-            wrapper.classList.remove('popup-open');
+            wrapper?.classList.remove('popup-open');
             return;
           }
 
-          wrapper.classList.add('popup-open');
+          wrapper?.classList.add('popup-open');
 
           clipboardHasProseMirrorData().then((hasPM) => {
             plugin._popUpHandle = createPopUp(
@@ -100,7 +100,7 @@ export class FloatingMenuPlugin extends Plugin {
                 autoDismiss: false,
                 onClose: () => {
                   plugin._popUpHandle = null;
-                  wrapper.classList.remove('popup-open');
+                  wrapper?.classList.remove('popup-open');
                 },
               }
             );
@@ -131,7 +131,7 @@ export class FloatingMenuPlugin extends Plugin {
   }
 }
 
-function copySelectionRich(view: EditorView, plugin: FloatingMenuPlugin) {
+export function copySelectionRich(view: EditorView, plugin: FloatingMenuPlugin) {
   const { state } = view;
   if (state.selection.empty) return;
 
@@ -143,16 +143,16 @@ function copySelectionRich(view: EditorView, plugin: FloatingMenuPlugin) {
     content: slice.content.toJSON(),
     openStart: slice.openStart,
     openEnd: slice.openEnd,
-    sliceModel: createSliceObject(view) 
+    sliceModel: createSliceObject(view)
   };
 
   navigator.clipboard.writeText(JSON.stringify(sliceJSON))
-    .then(() => console.log("Rich content copied"))
-    .catch(err => console.error("Clipboard write failed", err));
+    .then(() => console.log('Rich content copied'))
+    .catch(err => console.error('Clipboard write failed', err));
   if (plugin._popUpHandle) {
     plugin._popUpHandle.update({
-      ...plugin._popUpHandle["props"],
-      pasteAsReferenceEnabled: true, 
+      ...plugin._popUpHandle['props'],
+      pasteAsReferenceEnabled: true,
     });
   }
   if (plugin._popUpHandle?.close) {
@@ -161,7 +161,7 @@ function copySelectionRich(view: EditorView, plugin: FloatingMenuPlugin) {
   }
 }
 
-function createSliceObject(editorView: EditorView): SliceModel {
+export function createSliceObject(editorView: EditorView): SliceModel {
   const instanceUrl = 'http://modusoperandi.com/editor/instance/';
   const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';
 
@@ -176,7 +176,7 @@ function createSliceObject(editorView: EditorView): SliceModel {
     ids: [],
   };
 
-  let objectIds: string[] = [];
+  const objectIds: string[] = [];
   let firstParagraphText: string | null = null;
 
   editorView.focus();
@@ -184,8 +184,8 @@ function createSliceObject(editorView: EditorView): SliceModel {
   const $from = editorView.state.selection.$from;
   const $to = editorView.state.selection.$to;
 
-  const from = $from.start($from.depth); 
-  const to = $to.end($to.depth);         
+  const from = $from.start($from.depth);
+  const to = $to.end($to.depth);
 
   editorView.state.doc.nodesBetween(from, to, (node) => {
     if (node.type.name === 'paragraph') {
@@ -203,8 +203,8 @@ function createSliceObject(editorView: EditorView): SliceModel {
   sliceModel.from = objectIds.length > 0 ? objectIds[0] : '';
   sliceModel.to = objectIds.length > 0 ? objectIds[objectIds.length - 1] : '';
 
-  const viewWithDocView = editorView as any;
-  sliceModel.source = viewWithDocView?.docView?.node?.attrs?.objectId;
+  const viewWithDocView = editorView as EditorView;
+  sliceModel.source = viewWithDocView?.['docView']?.node?.attrs?.objectId;
   sliceModel.referenceType = referenceUrl;
 
   const today = new Date().toISOString().split('T')[0];
@@ -215,7 +215,7 @@ function createSliceObject(editorView: EditorView): SliceModel {
 }
 
 
-function copySelectionPlain(view: EditorView, plugin: FloatingMenuPlugin) {
+export function copySelectionPlain(view: EditorView, plugin: FloatingMenuPlugin) {
   if (!view.hasFocus()) {
     view.focus();
   }
@@ -223,18 +223,18 @@ function copySelectionPlain(view: EditorView, plugin: FloatingMenuPlugin) {
   if (from === to) return;
 
   const slice = view.state.doc.slice(from, to);
-  const text = slice.content.textBetween(0, slice.content.size, "\n");
+  const text = slice.content.textBetween(0, slice.content.size, '\n');
 
   navigator.clipboard.writeText(text)
-    .then(() => console.log("Plain text copied!"))
-    .catch((err) => console.error("Clipboard write failed:", err));
+    .then(() => console.log('Plain text copied!'))
+    .catch((err) => console.error('Clipboard write failed:', err));
       if (plugin._popUpHandle?.close) {
     plugin._popUpHandle.close(null);
     plugin._popUpHandle = null;
   }
 }
 
-async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuPlugin) {
+export async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuPlugin) {
   try {
     if (!view.hasFocus()) view.focus();
 
@@ -253,7 +253,7 @@ async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuPlugin) 
 
     view.dispatch(tr.scrollIntoView());
   } catch (err) {
-    console.error("Clipboard paste failed:", err);
+    console.error('Clipboard paste failed:', err);
   } finally {
     if (plugin._popUpHandle?.close) {
       plugin._popUpHandle.close(null);
@@ -262,7 +262,7 @@ async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuPlugin) 
   }
 }
 
-async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlugin) {
+export async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlugin) {
   try {
     if (!view.hasFocus()) view.focus();
 
@@ -295,11 +295,11 @@ async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlugin) {
   }
 }
 
-async function pasteAsPlainText(view: EditorView, plugin: FloatingMenuPlugin) {
+export async function pasteAsPlainText(view: EditorView, plugin: FloatingMenuPlugin) {
   try {
     if (!view.hasFocus()) view.focus();
 
-    let text = await navigator.clipboard.readText();
+    const text = await navigator.clipboard.readText();
     let plainText = text;
 
     try {
@@ -307,9 +307,9 @@ async function pasteAsPlainText(view: EditorView, plugin: FloatingMenuPlugin) {
       const slice = Slice.fromJSON(view.state.schema, parsed);
 
       const frag = slice.content;
-      plainText = "";
+      plainText = '';
       frag.forEach((node) => {
-        plainText += node.textContent + "\n";
+        plainText += node.textContent + '\n';
       });
       plainText = plainText.trim();
     } catch {
@@ -320,7 +320,7 @@ async function pasteAsPlainText(view: EditorView, plugin: FloatingMenuPlugin) {
     const tr = state.tr.insertText(plainText, state.selection.from, state.selection.to);
     view.dispatch(tr.scrollIntoView());
   } catch (err) {
-    console.error("Plain text paste failed:", err);
+    console.error('Plain text paste failed:', err);
   }
 
   if (plugin._popUpHandle?.close) {
@@ -329,16 +329,16 @@ async function pasteAsPlainText(view: EditorView, plugin: FloatingMenuPlugin) {
   }
 }
 
-async function clipboardHasProseMirrorData(): Promise<boolean> {
+export async function clipboardHasProseMirrorData(): Promise<boolean> {
   try {
     const text = await navigator.clipboard.readText();
     if (!text) return false;
     const parsed = JSON.parse(text);
     return (
       parsed &&
-      typeof parsed === "object" &&
+      typeof parsed === 'object' &&
       parsed.content &&
-      Array.isArray(parsed.content) || parsed.content.type 
+      Array.isArray(parsed.content) || parsed.content.type
     );
   } catch {
     return false;
@@ -347,10 +347,10 @@ async function clipboardHasProseMirrorData(): Promise<boolean> {
 
 
 // --- Decoration function ---
-function getDecorations(doc: any, state: EditorState): DecorationSet {
+export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
 
-  state.doc.descendants((node: any, pos: number) => {
+  doc?.descendants((node: Node, pos: number) => {
     // --- Hamburger per paragraph ---
     if (node.type.name === 'paragraph') {
       const wrapper = document.createElement('span');
@@ -374,40 +374,40 @@ if (node.isBlock && node.type.name === 'paragraph') {
         decoFlags.isComment
       ) {
         // --- Container for gutter marks ---
-        const container = document.createElement("span");
-        container.style.position = "absolute";   
-        container.style.left = "27px";           
-        container.style.display = "inline-flex";
-        container.style.gap = "6px";
-        container.style.alignItems = "center";
-        container.contentEditable = "false";
-        container.style.userSelect = "none";
+        const container = document.createElement('span');
+        container.style.position = 'absolute';
+        container.style.left = '27px';
+        container.style.display = 'inline-flex';
+        container.style.gap = '6px';
+        container.style.alignItems = 'center';
+        container.contentEditable = 'false';
+        container.style.userSelect = 'none';
 
         // --- Slice ---
         if (decoFlags.isSlice) {
-          const SliceMark = document.createElement("span");
+          const SliceMark = document.createElement('span');
           SliceMark.id = `slicemark-${uuidv4()}`;
-          SliceMark.style.fontFamily = "FontAwesome";
-          SliceMark.innerHTML = "&#xf097";
-          SliceMark.onclick = () => console.log("Slice deco clicked");
+          SliceMark.style.fontFamily = 'FontAwesome';
+          SliceMark.innerHTML = '&#xf097';
+          SliceMark.onclick = () => console.log('Slice deco clicked');
           container.appendChild(SliceMark);
         }
 
         // --- Tag ---
         if (decoFlags.isTag) {
-          const TagMark = document.createElement("span");
-          TagMark.style.fontFamily = "FontAwesome";
-          TagMark.innerHTML = "&#xf02b;";
-          TagMark.onclick = () => console.log("Tag deco clicked");
+          const TagMark = document.createElement('span');
+          TagMark.style.fontFamily = 'FontAwesome';
+          TagMark.innerHTML = '&#xf02b;';
+          TagMark.onclick = () => console.log('Tag deco clicked');
           container.appendChild(TagMark);
         }
 
         // --- Comment ---
         if (decoFlags.isComment) {
-          const CommentMark = document.createElement("span");
-          CommentMark.style.fontFamily = "FontAwesome";
-          CommentMark.innerHTML = "&#xf075;";
-          CommentMark.onclick = () => console.log("Comment deco clicked");
+          const CommentMark = document.createElement('span');
+          CommentMark.style.fontFamily = 'FontAwesome';
+          CommentMark.innerHTML = '&#xf075;';
+          CommentMark.onclick = () => console.log('Comment deco clicked');
           container.appendChild(CommentMark);
         }
 
@@ -426,35 +426,33 @@ export async function getDocSlices(_view: EditorView) {
     setSlices(result, _view.state);
     setSliceAtrrs(_view);
   } catch (err) {
-    console.error("Failed to load slices:", err);
+    console.error('Failed to load slices:', err);
   }
 }
 
 
-function changeAttribute(_view: EditorView): void {
+export function changeAttribute(_view: EditorView): void {
   const from = _view.state.selection.$from.before(1);
-  let node = _view.state.doc.nodeAt(from);
+  const node = _view.state.doc.nodeAt(from);
+  if (!node) return; // early return if node does not exist
   let tr = _view.state.tr;
-  const newattrs = {...(node ? node.attrs : {})};
-  if (newattrs) {
-    const isDeco = { ...(newattrs.isDeco || {}) };
-    isDeco.isSlice = true;
-    newattrs.isDeco = isDeco;
-    tr = tr.setNodeMarkup(from, undefined, newattrs);
-    _view.dispatch(tr);
-  }
+  const newattrs = { ...node.attrs };
+  const isDeco = { ...(newattrs.isDeco || {}) };
+  isDeco.isSlice = true;
+  newattrs.isDeco = isDeco;
+  tr = tr.setNodeMarkup(from, undefined, newattrs);
+  _view.dispatch(tr);
 }
 
 
-export function createNewSlice (_view: any): void {
+export function createNewSlice (_view: EditorView): void {
   const sliceModel = createSliceObject(_view);
   _view['runtime'].createSlice(sliceModel)
     .then((val) => {
-      console.log('createSlice resolved with:', val);
       addSliceToList(val);
       changeAttribute(_view);
     })
     .catch((err) => {
       console.error('createSlice failed with:', err);
     });
-};
+}

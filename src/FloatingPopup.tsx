@@ -1,8 +1,23 @@
 import React from 'react';
 import { CustomButton } from '@modusoperandi/licit-ui-commands';
 import { createNewSlice } from './FloatingMenuPlugin';
+import { EditorView } from 'prosemirror-view';
+import {EditorState} from 'prosemirror-state';
 
-export class FloatingMenu extends React.PureComponent<any, any> {
+interface FloatingMenuProps {
+  editorState: EditorState;
+  editorView: EditorView;
+  paragraphPos: number;
+  pasteAsReferenceEnabled: boolean;
+  copyRichHandler: () => void;
+  copyPlainHandler: () => void;
+  pasteHandler: () => void;
+  pasteAsReferenceHandler: () => void;
+  pastePlainHandler: () => void;
+  close?: (menuName: string) => void;
+}
+
+export class FloatingMenu extends React.PureComponent<FloatingMenuProps, FloatingMenuProps> {
   constructor(props) {
     super(props);
     this.state = {
@@ -11,8 +26,6 @@ export class FloatingMenu extends React.PureComponent<any, any> {
   }
 
   render(): React.ReactNode {
-    console.log("FloatingMenu mounted for paragraph", this.props.paragraphPos);
-
     const { editorState, paragraphPos } = this.props;
     const { selection } = editorState;
 
@@ -31,19 +44,19 @@ export class FloatingMenu extends React.PureComponent<any, any> {
     return (
       <div className="context-menu" role="menu" tabIndex={-1}>
         <div className="context-menu__items">
-                      <CustomButton 
-              label="Create Citation" 
+                      <CustomButton
+              disabled={!enableCitationAndComment}
+              label="Create Citation"
               onClick={() => {
-                this.onCreateCitation();
-              }} 
-              disabled={!enableCitationAndComment} 
+              this.onCreateCitation();
+              }}
             />
-                    <CustomButton 
-            label="Create Infoicon" 
+                    <CustomButton
+            disabled={!enableTagAndInfoicon}
+            label="Create Infoicon"
             onClick={() => {
-              this.onCreateInfoIcon();
-            }} 
-            disabled={!enableTagAndInfoicon} 
+            this.onCreateInfoIcon();
+            }}
           />
 
           <CustomButton label="Copy" onClick={this.props.copyRichHandler} />
@@ -55,11 +68,11 @@ export class FloatingMenu extends React.PureComponent<any, any> {
           />
           <CustomButton label="Paste As Plain Text" onClick={this.props.pastePlainHandler} />
           <CustomButton
+            disabled={!this.props.pasteAsReferenceEnabled}
             label="Paste As Reference"
             onClick={() => {
               this.props.pasteAsReferenceHandler();
             }}
-            disabled={!this.props.pasteAsReferenceEnabled}
           />
 
           <CustomButton label="Create Bookmark" onClick={() => { createNewSlice(this.props.editorView); this.props.close?.('Create Slice'); }}
