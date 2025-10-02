@@ -52,7 +52,7 @@ export class FloatingMenuPlugin extends Plugin {
         (this as FloatingMenuPlugin)._view = view;
 
         view.dom.addEventListener('pointerdown', (e) => {
-          const targetEl = (e.target as HTMLElement).closest('.pm-hamburger');
+          const targetEl = (e.target as HTMLElement).closest('.float-icon');
           if (!targetEl) return;
 
           e.preventDefault();
@@ -112,7 +112,7 @@ export class FloatingMenuPlugin extends Plugin {
           if (
             this._popUpHandle &&
             !el.closest('.context-menu') &&
-            !el.closest('.pm-hamburger')
+            !el.closest('.float-icon')
           ) {
             this._popUpHandle.close(null);
             this._popUpHandle = null;
@@ -351,14 +351,14 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
 
   doc?.descendants((node: Node, pos: number) => {
-    // --- Hamburger per paragraph ---
     if (node.type.name === 'paragraph') {
       const wrapper = document.createElement('span');
       wrapper.className = 'pm-hamburger-wrapper';
 
       const hamburger = document.createElement('span');
-      hamburger.className = 'pm-hamburger';
-      hamburger.innerHTML = '☰';
+      // ✅ Use FontAwesome
+      hamburger.className = 'float-icon fa fa-bars';
+      hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
       hamburger.dataset.pos = String(pos);
 
       wrapper.appendChild(hamburger);

@@ -4,31 +4,24 @@
   float: right;
 }
 
-/* Hamburger is hidden by default */
-.pm-hamburger {
+/* Icon hidden by default */
+.float-icon {
   position: absolute;
   right: 0;
   top: 0;
   cursor: pointer;
-  margin-right: 4px;
+  margin-right: 6px;
   color: #555;
-  font-size: 14px;
+  font-size: 16px;
   user-select: none;
-  opacity: 0;               /* hidden initially */
+  opacity: 0; /* hidden initially */
   transition: opacity 0.18s ease-in-out;
 }
 
-/* Show hamburger only when hovering the paragraph */
-.ProseMirror p:hover .pm-hamburger {
+/* Show icon only when hovering over the paragraph */
+.ProseMirror p:hover .float-icon {
   opacity: 1;
 }
-
-/* Optional hover effect */
-.pm-hamburger:hover {
-  color: black;
-}
-
-
 
 .context-menu {
   position: absolute; /* positioned by createPopUp */

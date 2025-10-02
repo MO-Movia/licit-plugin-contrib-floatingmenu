@@ -88,7 +88,7 @@ describe('FloatingMenuPlugin', () => {
     it('should attach view and handle pointerdown on hamburger', async () => {
         const wrapper = document.createElement('div');
         const hamburger = document.createElement('div');
-        hamburger.className = 'pm-hamburger';
+        hamburger.className = 'float-icon';
         hamburger.dataset.pos = '1';
         wrapper.appendChild(hamburger);
         view.dom.appendChild(wrapper);
