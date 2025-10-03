@@ -8,9 +8,10 @@ import {
   atAnchorBottomLeft,
 } from '@modusoperandi/licit-ui-commands';
 import { FloatingMenu } from './FloatingPopup';
-import {v4 as uuidv4} from 'uuid';
-import {insertReference} from '@mo/licit-referencing';
-import { addSliceToList, FloatRuntime, getDocumentslices, setSliceAtrrs, setSliceRuntime, setSlices } from './slice';
+import { v4 as uuidv4 } from 'uuid';
+import { insertReference } from '@mo/licit-referencing';
+import { addSliceToList, getDocumentslices, setSliceAtrrs, setSliceRuntime, setSlices } from './slice';
+import { FloatRuntime } from './model';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 interface SliceModel {
@@ -37,11 +38,32 @@ export class FloatingMenuPlugin extends Plugin {
             decorations: getDecorations(state.doc, state),
           };
         },
-        apply(tr, _prev, _, newState) {
-          return {
-            decorations: getDecorations(tr.doc, newState),
-          };
-        },
+        apply(tr, prev, _oldState, newState) {
+        let decos = prev.decorations;
+
+        if (!tr.docChanged) {
+          return { decorations: decos.map(tr.mapping, tr.doc) };
+        }
+
+        decos = decos.map(tr.mapping, tr.doc);
+
+        const requiresRescan =
+          tr.steps.some((step) => {
+            const s = step.toJSON();
+            return (
+              s.stepType === "replace" || 
+              s.stepType === "replaceAround" ||
+              s.stepType === "setNodeMarkup"
+            );
+          }) ||
+          tr.getMeta(CMPluginKey)?.forceRescan;
+
+        if (requiresRescan) {
+          decos = getDecorations(tr.doc, newState);
+        }
+
+        return { decorations: decos };
+      },
       },
       props: {
         decorations(state) {
@@ -365,6 +387,8 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
 
       decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
     }
+    const decoFlags = node.attrs?.isDeco;
+    if (!decoFlags) return;
 
 if (node.isBlock && node.type.name === 'paragraph') {
       const decoFlags = node.attrs?.isDeco || {};
@@ -413,6 +437,7 @@ if (node.isBlock && node.type.name === 'paragraph') {
 
         decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
       }
+      return false; 
     }
   });
 
@@ -420,11 +445,11 @@ if (node.isBlock && node.type.name === 'paragraph') {
 }
 
 // To retrieve all the document slices from the server and cache it.
-export async function getDocSlices(_view: EditorView) {
+export async function getDocSlices(view: EditorView) {
   try {
-    const result = await getDocumentslices(_view);
-    setSlices(result, _view.state);
-    setSliceAtrrs(_view);
+    const result = await getDocumentslices(view);
+    setSlices(result, view.state);
+    setSliceAtrrs(view);
   } catch (err) {
     console.error('Failed to load slices:', err);
   }
