@@ -17,7 +17,10 @@
    "peerDependencies": {
       "@modusoperandi/licit-ui-commands": "^1.0.8",
       "@mo/licit-referencing": "^2.0.4",
-      "prosemirror-menu": "^1.2.2",
+      "prosemirror-model": "^1.19.4",
+      "prosemirror-state": "^1.4.2",
+      "prosemirror-transform": "^1.7.0",
+      "prosemirror-view": "^1.27.0",
       "prosemirror-schema-basic": "^1.2.0",
       "prosemirror-schema-list": "^1.2.0",
       "prosemirror-utils": "^1.0.0"

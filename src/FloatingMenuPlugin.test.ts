@@ -2,21 +2,20 @@
  * @jest-environment jsdom
  */
 
-import { EditorState, TextSelection, Transaction, PluginKey } from 'prosemirror-state';
+import { EditorState, TextSelection, Transaction } from 'prosemirror-state';
 
 import { DecorationSet, EditorView } from 'prosemirror-view';
 import { Schema, Node } from 'prosemirror-model';
 import {
     FloatingMenuPlugin, changeAttribute, copySelectionPlain, copySelectionRich, createNewSlice, createSliceObject,
-    getDecorations, getDocSlices, pasteAsPlainText, pasteAsReference, pasteFromClipboard, CMPluginKey
+    getDecorations, getDocSlices, pasteAsPlainText, pasteAsReference, pasteFromClipboard
 } from './FloatingMenuPlugin';
 import * as sliceModule from './slice';
-import * as referencingModule from '@mo/licit-referencing';
 import { insertReference } from '@mo/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
 import { FloatingMenu } from './FloatingPopup';
-import { addSliceToList, getDocumentslices, setSliceAtrrs, setSlices, FloatRuntime } from './slice';
-
+import { getDocumentslices, setSliceAtrrs, setSlices } from './slice';
+import { FloatRuntime, SliceModel } from './model';
 // Mock external dependencies
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
     createPopUp: jest.fn(() => ({ close: jest.fn() })),
@@ -41,7 +40,7 @@ jest.mock('./slice', () => ({
 }));
 
 const mockRuntime: FloatRuntime = {
-    createSlice: jest.fn().mockResolvedValue({} as any), // mock return value as needed
+    createSlice: jest.fn().mockResolvedValue({} as SliceModel), // mock return value as needed
     retrieveSlices: jest.fn().mockResolvedValue([]),
 };
 // Mock clipboard helper
@@ -118,8 +117,8 @@ describe('FloatingMenuPlugin', () => {
     it('should handle outside click', () => {
         const div = document.createElement('div');
         document.body.appendChild(div);
+        plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
 
-        plugin._popUpHandle = { close: jest.fn() } as any;
         const clickEvent = new MouseEvent('click', { bubbles: true });
         div.dispatchEvent(clickEvent);
 
@@ -140,7 +139,6 @@ describe('copySelectionRich', () => {
     let state: EditorState;
     let view: EditorView;
     let plugin: FloatingMenuPlugin;
-    let clipboardWriteMock: jest.SpyInstance;
 
     beforeEach(() => {
         jest.clearAllMocks();
@@ -205,13 +203,13 @@ describe('copySelectionRich', () => {
             update: jest.fn(),
             close: jest.fn(),
             props: { pasteAsReferenceEnabled: false },
-        } as any;
+        } as unknown as licitCommands.PopUpHandle;
 
         await copySelectionRich(view, plugin);
 
         expect(view.focus).toHaveBeenCalled(); // focus branch
         expect(navigator.clipboard.writeText).toHaveBeenCalledWith(
-            expect.stringContaining("{\"content\"")
+            expect.stringContaining('{"content"')
         );
 
         expect(plugin._popUpHandle).toBeNull();
@@ -257,9 +255,8 @@ describe('createSliceObject', () => {
     });
 
     it('should create a slice object with no objectIds', () => {
-        // const slice = createSliceObject(view);
 
-        let sliceModelMock = { ids: 'slice1', from: 'slice1', to: 'slice1', source: undefined, name: 'Untitled', id: 'http://modusoperandi.com/editor/instance/slice1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
+        const sliceModelMock = { ids: 'slice1', from: 'slice1', to: 'slice1', source: undefined, name: 'Untitled', id: 'http://modusoperandi.com/editor/instance/slice1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
         (createSliceObject as jest.Mock).mockReturnValue(sliceModelMock);
 
         expect(sliceModelMock.ids).toEqual('slice1');
@@ -286,7 +283,8 @@ describe('createSliceObject', () => {
         view.updateState(state);
 
         // Add a fake docView with objectId
-        (view as any).docView = { node: { attrs: { objectId: 'sourceObj' } } };
+
+        (view as EditorView)['docView'] = { node: { attrs: { objectId: 'sourceObj' } } };
 
         const slice = createSliceObject(view);
 
@@ -327,7 +325,7 @@ describe('copySelectionPlain', () => {
         jest.spyOn(view, 'focus').mockImplementation(() => { });
 
         plugin = new FloatingMenuPlugin(mockRuntime);
-        plugin._popUpHandle = { close: jest.fn() } as any;
+        plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
 
         // Mock clipboard
         Object.assign(navigator, {
@@ -411,7 +409,7 @@ describe('pasteFromClipboard', () => {
         jest.spyOn(view, 'dispatch');
 
         plugin = new FloatingMenuPlugin(mockRuntime);
-        plugin._popUpHandle = { close: jest.fn() } as any;
+        plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
 
         Object.assign(navigator, {
             clipboard: {
@@ -424,8 +422,7 @@ describe('pasteFromClipboard', () => {
         (navigator.clipboard.readText as jest.Mock).mockResolvedValueOnce('Plain text');
 
         const closeSpy = jest.fn();
-        plugin._popUpHandle = { close: closeSpy } as any;
-
+        plugin._popUpHandle = { close: closeSpy, update: jest.fn() };
         await pasteFromClipboard(view, plugin);
 
         expect(view.focus).toHaveBeenCalled();
@@ -488,12 +485,12 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
         view = new EditorView(document.createElement('div'), { state });
 
         // add runtime mock
-        (view as any)['runtime'] = {
+        (view as EditorView)['runtime'] = {
             createSlice: jest.fn().mockResolvedValue('ok'),
         };
 
         plugin = new FloatingMenuPlugin(mockRuntime);
-        plugin._popUpHandle = { close: jest.fn() } as any;
+        plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
 
         Object.assign(navigator, {
             clipboard: {
@@ -505,29 +502,29 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
     /** pasteAsReference tests **/
 
     it('should paste as reference and call insertReference', async () => {
-        const sliceModel = { id: 'id1', source: 'src', name: 'slice1' } as any;
+        const sliceModel = { id: 'id1', source: 'src', name: 'slice1' } as SliceModel;
         (navigator.clipboard.readText as jest.Mock).mockResolvedValue(JSON.stringify({ sliceModel }));
-        (view as any)['docView'] = { node: { attrs: { objectMetaData: { name: 'docName' } } } };
+        (view as EditorView)['docView'] = { node: { attrs: { objectMetaData: { name: 'docName' } } } };
 
         await pasteAsReference(view, plugin);
 
         expect(view.focus).toBeDefined();
         expect(insertReference).toHaveBeenCalledWith(view, 'id1', 'src', 'docName');
-        expect(plugin._popUpHandle?.close).toBeUndefined()
+        expect(plugin._popUpHandle?.close).toBeUndefined();
         expect(plugin._popUpHandle).toBeNull();
     });
 
     it('should handle runtime.createSlice rejection', async () => {
-        const sliceModel = { id: 'id1', source: 'src' } as any;
+        const sliceModel = { ids: ['slice1'], from: 'slice1', to: 'slice1', source: 'src', name: 'Untitled', id: 'id1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
         (navigator.clipboard.readText as jest.Mock).mockResolvedValue(JSON.stringify({ sliceModel }));
-        (view as any).runtime.createSlice = jest.fn().mockRejectedValue(new Error('fail'));
+        (view as EditorView)['runtime'].createSlice = jest.fn().mockRejectedValue(new Error('fail'));
         const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
         // Call function
         await pasteAsReference(view, plugin);
 
         // Wait for the runtime.createSlice promise to settle
-        await new Promise(process.nextTick);
+        await Promise.resolve();
 
         expect(consoleErrorSpy).toHaveBeenCalledWith('slice failed with:', expect.any(Error));
         consoleErrorSpy.mockRestore();
@@ -575,7 +572,7 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
         await pasteAsPlainText(view, plugin);
 
         expect(view.dispatch).toHaveBeenCalled();
-        expect(plugin._popUpHandle?.close).toBeUndefined()
+        expect(plugin._popUpHandle?.close).toBeUndefined();
     });
 
 
@@ -649,57 +646,57 @@ describe('getDecorations', () => {
         const decorations = getDecorations(doc, state);
         expect(decorations).toBeInstanceOf(DecorationSet);
         expect(decorations.find().length).toBeGreaterThan(0);
-        expect(decorations.find()[0].spec.widget?.className).toBeUndefined()
+        expect(decorations.find()[0].spec.widget?.className).toBeUndefined();
     });
     it('creates hamburger when isSlice isTag false', () => {
         const schema = new Schema({
             nodes: {
                 doc: {
-                    content: "block+"
+                    content: 'block+'
                 },
                 paragraph: {
-                    content: "inline*",
-                    group: "block",
+                    content: 'inline*',
+                    group: 'block',
                     attrs: {
                         isDeco: { default: null } // 👈 decoration flags live here
                     },
-                    parseDOM: [{ tag: "p" }],
+                    parseDOM: [{ tag: 'p' }],
                     toDOM() {
-                        return ["p", 0];
+                        return ['p', 0];
                     }
                 },
                 text: {
-                    group: "inline"
+                    group: 'inline'
                 }
             },
             marks: {}
         });
 
         const jsonDoc = {
-            "type": "doc",
-            "content": [
+            'type': 'doc',
+            'content': [
                 {
-                    "type": "paragraph",
-                    "attrs": {
-                        "isDeco": {
-                            "isSlice": false,
-                            "isTag": false,
-                            "isComment": true
+                    'type': 'paragraph',
+                    'attrs': {
+                        'isDeco': {
+                            'isSlice': false,
+                            'isTag': false,
+                            'isComment': true
                         }
                     },
-                    "content": [
+                    'content': [
                         {
-                            "type": "text",
-                            "text": "This paragraph has all decorations (slice, tag, comment)."
+                            'type': 'text',
+                            'text': 'This paragraph has all decorations (slice, tag, comment).'
                         }
                     ]
                 },
                 {
-                    "type": "paragraph",
-                    "content": [
+                    'type': 'paragraph',
+                    'content': [
                         {
-                            "type": "text",
-                            "text": "This paragraph has only the hamburger decoration."
+                            'type': 'text',
+                            'text': 'This paragraph has only the hamburger decoration.'
                         }
                     ]
                 }
@@ -714,51 +711,51 @@ describe('getDecorations', () => {
         const schema = new Schema({
             nodes: {
                 doc: {
-                    content: "block+"
+                    content: 'block+'
                 },
                 paragraph: {
-                    content: "inline*",
-                    group: "block",
+                    content: 'inline*',
+                    group: 'block',
                     attrs: {
                         isDeco: { default: null } // 👈 decoration flags live here
                     },
-                    parseDOM: [{ tag: "p" }],
+                    parseDOM: [{ tag: 'p' }],
                     toDOM() {
-                        return ["p", 0];
+                        return ['p', 0];
                     }
                 },
                 text: {
-                    group: "inline"
+                    group: 'inline'
                 }
             },
             marks: {}
         });
 
         const jsonDoc = {
-            "type": "doc",
-            "content": [
+            'type': 'doc',
+            'content': [
                 {
-                    "type": "paragraph",
-                    "attrs": {
-                        "isDeco": {
-                            "isSlice": true,
-                            "isTag": true,
-                            "isComment": true
+                    'type': 'paragraph',
+                    'attrs': {
+                        'isDeco': {
+                            'isSlice': true,
+                            'isTag': true,
+                            'isComment': true
                         }
                     },
-                    "content": [
+                    'content': [
                         {
-                            "type": "text",
-                            "text": "This paragraph has all decorations (slice, tag, comment)."
+                            'type': 'text',
+                            'text': 'This paragraph has all decorations (slice, tag, comment).'
                         }
                     ]
                 },
                 {
-                    "type": "paragraph",
-                    "content": [
+                    'type': 'paragraph',
+                    'content': [
                         {
-                            "type": "text",
-                            "text": "This paragraph has only the hamburger decoration."
+                            'type': 'text',
+                            'text': 'This paragraph has only the hamburger decoration.'
                         }
                     ]
                 }
@@ -773,51 +770,51 @@ describe('getDecorations', () => {
         const schema = new Schema({
             nodes: {
                 doc: {
-                    content: "block+"
+                    content: 'block+'
                 },
                 paragraph: {
-                    content: "inline*",
-                    group: "block",
+                    content: 'inline*',
+                    group: 'block',
                     attrs: {
                         isDeco: { default: null } // 👈 decoration flags live here
                     },
-                    parseDOM: [{ tag: "p" }],
+                    parseDOM: [{ tag: 'p' }],
                     toDOM() {
-                        return ["p", 0];
+                        return ['p', 0];
                     }
                 },
                 text: {
-                    group: "inline"
+                    group: 'inline'
                 }
             },
             marks: {}
         });
 
         const jsonDoc = {
-            "type": "doc",
-            "content": [
+            'type': 'doc',
+            'content': [
                 {
-                    "type": "paragraph",
-                    "attrs": {
-                        "isDeco": {
-                            "isSlice": false,
-                            "isTag": true,
-                            "isComment": true
+                    'type': 'paragraph',
+                    'attrs': {
+                        'isDeco': {
+                            'isSlice': false,
+                            'isTag': true,
+                            'isComment': true
                         }
                     },
-                    "content": [
+                    'content': [
                         {
-                            "type": "text",
-                            "text": "This paragraph has all decorations (slice, tag, comment)."
+                            'type': 'text',
+                            'text': 'This paragraph has all decorations (slice, tag, comment).'
                         }
                     ]
                 },
                 {
-                    "type": "paragraph",
-                    "content": [
+                    'type': 'paragraph',
+                    'content': [
                         {
-                            "type": "text",
-                            "text": "This paragraph has only the hamburger decoration."
+                            'type': 'text',
+                            'text': 'This paragraph has only the hamburger decoration.'
                         }
                     ]
                 }
@@ -832,11 +829,21 @@ describe('getDecorations', () => {
 });
 
 describe('getDocSlices', () => {
-    let view: any;
+    let view;
 
     beforeEach(() => {
+        const el = document.createElement('div');
         view = {
             state: { doc: {} },
+            dispatch: jest.fn(),
+            posAtCoords: () => {
+                return {
+                    pos: 1,
+                    inside: 1,
+                };
+            },
+            destroy: jest.fn(),
+            dom: el,
         };
         jest.clearAllMocks();
     });
@@ -867,11 +874,12 @@ describe('getDocSlices', () => {
 });
 
 describe('createNewSlice', () => {
-    let view: any;
-    let sliceModelMock: any;
+    let view;
+    let sliceModelMock: SliceModel;
 
     beforeEach(() => {
-        sliceModelMock = { id: 'slice1' };
+
+        sliceModelMock = { ids: ['slice1'], from: 'slice1', to: 'slice1', source: '', name: 'Untitled', id: 'http://modusoperandi.com/editor/instance/slice1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
         (createSliceObject as jest.Mock).mockReturnValue(sliceModelMock);
 
         view = {
@@ -881,9 +889,9 @@ describe('createNewSlice', () => {
                     $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
                 },
                 doc: {
-                    nodesBetween: jest.fn((from: number, to: number, callback: any) => {
+                    nodesBetween: jest.fn((_from: number, _to: number, callback) => {
                         // simulate one paragraph node
-                        callback({ type: { name: 'paragraph' }, attrs: { objectId: 'obj1' }, textContent: 'Hello' }, 0);
+                        callback({ type: { name: 'paragraph' }, attrs: { objectId: 'obj1' }, textContent: 'Hello' }, 0) as unknown;
                     }),
                 },
                 schema: {}, // can be left empty or minimal schema
@@ -905,7 +913,7 @@ describe('createNewSlice', () => {
 
         await createNewSlice(view);
         // Wait for promise rejection
-        await new Promise(process.nextTick);
+        await Promise.resolve();
 
         expect(consoleSpy).toHaveBeenCalledWith('createSlice failed with:', error);
 
@@ -915,7 +923,7 @@ describe('createNewSlice', () => {
 
 
 describe('changeAttribute', () => {
-    let viewMock: any;
+    let viewMock;
 
     beforeEach(() => {
         viewMock = {
@@ -988,7 +996,7 @@ describe('changeAttribute', () => {
             }
         );
     });
-    it("should not call setNodeMarkup if no node exists at selection", () => {
+    it('should not call setNodeMarkup if no node exists at selection', () => {
         const stateMock = {
             selection: { from: 999 }, // non-existent
             schema: { nodes: { floatingMenu: {} } },
@@ -1002,42 +1010,39 @@ describe('changeAttribute', () => {
     });
 
 
-    it("should return old plugin state if no docChanged", () => {
+    it('should return old plugin state if no docChanged', () => {
         const oldPluginState = { active: false };
 
-        const trMock = { docChanged: false } as any;
+        const trMock = { docChanged: false } as Transaction;
         const oldState = {} as EditorState;
         const newState = {} as EditorState;
 
         const plugin = new FloatingMenuPlugin(mockRuntime);
-        const applyFn = plugin.spec.state?.apply!;
+        const applyFn = plugin.spec.state?.apply ?? (() => { });
 
         const newPluginState = applyFn(trMock, oldPluginState, oldState, newState);
 
         // Use deep equality
         expect(newPluginState).toBeDefined();
     });
-        it("should handle apply", () => {
-        const oldPluginState = { active: false,decorations:{map:()=>{return {}}} };
-
-        const trMock = { docChanged: true,steps:[{toJSON:()=>{return {stepType :'setNodeMarkup'}}}] } as any;
+        it('should handle apply', () => {
+        const oldPluginState = { active: false,decorations:{map:()=>{return {};}} };
+        const trMock = { docChanged: true,steps:[{toJSON:()=>{return {stepType :'setNodeMarkup'};}}] } as Transaction;
         const oldState = {} as EditorState;
         const newState = {} as EditorState;
-
         const plugin = new FloatingMenuPlugin(mockRuntime);
-        const applyFn = plugin.spec.state?.apply!;
-
+        const applyFn = plugin.spec.state?.apply;
+        expect(applyFn).toBeDefined();
+        if (!applyFn) {
+        throw new Error('Plugin apply function is undefined');
+        }
         const newPluginState = applyFn(trMock, oldPluginState, oldState, newState);
-
-        // Use deep equality
         expect(newPluginState).toBeDefined();
-    });
-
-
-});
+            });
+        });
 describe('createNewSlice ',()=>{
     it('createNewSlice ',()=>{
-        expect(createNewSlice({focus:()=>{},state:{selection:{$from:{start:()=>{return 0}},$to:{end:()=>{return 1}}},
+        expect(createNewSlice({focus:()=>{},state:{selection:{$from:{start:()=>{return 0;}},$to:{end:()=>{return 1;}}},
         doc:{nodesBetween:()=>{}}},'runtime':{createSlice:()=>{return Promise.resolve({});}}} as unknown as EditorView) ).toBeUndefined();
-    })
-})
+    });
+});

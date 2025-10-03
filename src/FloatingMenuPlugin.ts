@@ -51,9 +51,9 @@ export class FloatingMenuPlugin extends Plugin {
           tr.steps.some((step) => {
             const s = step.toJSON();
             return (
-              s.stepType === "replace" || 
-              s.stepType === "replaceAround" ||
-              s.stepType === "setNodeMarkup"
+              s.stepType === 'replace' ||
+              s.stepType === 'replaceAround' ||
+              s.stepType === 'setNodeMarkup'
             );
           }) ||
           tr.getMeta(CMPluginKey)?.forceRescan;
@@ -437,7 +437,6 @@ if (node.isBlock && node.type.name === 'paragraph') {
 
         decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
       }
-      return false; 
     }
   });
 

@@ -8,9 +8,9 @@ import {
     getdocSlices,
     getDocumentslices,
     addSliceToList,
-    SliceModel,
     setSliceAtrrs
 } from './slice';
+import { FloatRuntime,SliceModel } from './model';
 
 describe('sliceStore', () => {
     const mockSlice: SliceModel = {
@@ -32,7 +32,7 @@ describe('sliceStore', () => {
         slices.length = 0;
 
         // Reset runtime
-        setSliceRuntime(undefined as any);
+        setSliceRuntime(undefined as unknown as FloatRuntime);
 
         // Mock EditorState
         mockState = {
@@ -92,16 +92,16 @@ describe('sliceStore', () => {
 });
 
 describe('setSliceAtrrs', () => {
-    let mockView: any;
+    let mockView: EditorView;
 
     beforeEach(() => {
         // Reset module-level state
         getdocSlices().length = 0;
-        setSliceRuntime(undefined);
+        setSliceRuntime(undefined as unknown as FloatRuntime);
 
         // Mock view, doc, tr
         const tr = {
-            setNodeMarkup: jest.fn().mockImplementation((pos, type, attrs) => {
+            setNodeMarkup: jest.fn().mockImplementation(() => {
                 return tr;
             }),
         };
@@ -125,11 +125,13 @@ describe('setSliceAtrrs', () => {
         mockView = {
             state,
             dispatch: jest.fn(),
-        };
+        } as unknown as EditorView;
     });
 
     test('sets isDeco.isSlice for matching node', () => {
-        addSliceToList({ from: 'fromId' } as any);
+        const slice = { ids: 'slice1', from: 'fromId', to: 'slice1', source: undefined, name: 'Untitled', id: 'http://modusoperandi.com/editor/instance/slice1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
+
+        addSliceToList(slice as unknown as SliceModel);
 
         setSliceAtrrs(mockView as EditorView);
 
@@ -145,7 +147,8 @@ describe('setSliceAtrrs', () => {
     });
 
     test('skips node if objectId does not match', () => {
-        addSliceToList({ from: 'otherId' } as any);
+         const slice = { ids: 'slice1', from: 'otherId', to: 'slice1', source: undefined, name: 'Untitled', id: 'http://modusoperandi.com/editor/instance/slice1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
+        addSliceToList(slice as unknown as SliceModel);
 
         setSliceAtrrs(mockView as EditorView);
 

@@ -13,5 +13,5 @@ export interface FloatRuntime {
   createSlice(slice: SliceModel): Promise<SliceModel>;
 
   retrieveSlices(): Promise<SliceModel[]>;
-} 
+}
 

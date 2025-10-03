@@ -6,7 +6,7 @@ import { FloatRuntime, SliceModel } from './model';
 let docSlices = new Array(0);
 let sliceRuntime: FloatRuntime;
 
-export function setSliceRuntime(runtime) {
+export function setSliceRuntime(runtime:FloatRuntime) {
   sliceRuntime = runtime;
 }
 
