@@ -372,8 +372,8 @@ export async function clipboardHasProseMirrorData(): Promise<boolean> {
 export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
 
-  doc?.descendants((node: Node, pos: number) => {
-    if (node.type.name === 'paragraph') {
+  doc?.forEach((node: Node, pos: number) => {
+    if (node.type.name !== 'paragraph') return;
       const wrapper = document.createElement('span');
       wrapper.className = 'pm-hamburger-wrapper';
 
@@ -386,17 +386,13 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
       wrapper.appendChild(hamburger);
 
       decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
-    }
-    const decoFlags = node.attrs?.isDeco;
-    if (!decoFlags) return;
-
-if (node.isBlock && node.type.name === 'paragraph') {
-      const decoFlags = node.attrs?.isDeco || {};
-      if (
-        decoFlags.isSlice ||
-        decoFlags.isTag ||
-        decoFlags.isComment
-      ) {
+      const decoFlags = node.attrs?.isDeco;
+      if (!decoFlags) return;
+        if (
+          decoFlags.isSlice ||
+          decoFlags.isTag ||
+          decoFlags.isComment
+        ) {
         // --- Container for gutter marks ---
         const container = document.createElement('span');
         container.style.position = 'absolute';
@@ -437,9 +433,7 @@ if (node.isBlock && node.type.name === 'paragraph') {
 
         decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
       }
-    }
   });
-
   return DecorationSet.create(state.doc, decorations);
 }
 
