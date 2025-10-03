@@ -42,7 +42,7 @@ export class FloatingMenuPlugin extends Plugin {
         let decos = prev.decorations;
 
         if (!tr.docChanged) {
-          return { decorations: decos.map(tr.mapping, tr.doc) };
+          return { decorations: decos?.map(tr.mapping, tr.doc) };
         }
 
         decos = decos.map(tr.mapping, tr.doc);

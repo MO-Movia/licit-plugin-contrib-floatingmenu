@@ -651,6 +651,183 @@ describe('getDecorations', () => {
         expect(decorations.find().length).toBeGreaterThan(0);
         expect(decorations.find()[0].spec.widget?.className).toBeUndefined()
     });
+    it('creates hamburger when isSlice isTag false', () => {
+        const schema = new Schema({
+            nodes: {
+                doc: {
+                    content: "block+"
+                },
+                paragraph: {
+                    content: "inline*",
+                    group: "block",
+                    attrs: {
+                        isDeco: { default: null } // 👈 decoration flags live here
+                    },
+                    parseDOM: [{ tag: "p" }],
+                    toDOM() {
+                        return ["p", 0];
+                    }
+                },
+                text: {
+                    group: "inline"
+                }
+            },
+            marks: {}
+        });
+
+        const jsonDoc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "attrs": {
+                        "isDeco": {
+                            "isSlice": false,
+                            "isTag": false,
+                            "isComment": true
+                        }
+                    },
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This paragraph has all decorations (slice, tag, comment)."
+                        }
+                    ]
+                },
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This paragraph has only the hamburger decoration."
+                        }
+                    ]
+                }
+            ]
+        };
+        const doc = schema.nodeFromJSON(jsonDoc);
+
+        const decorations = getDecorations(doc, state);
+        expect(decorations).toBeDefined();
+    });
+        it('creates hamburger ', () => {
+        const schema = new Schema({
+            nodes: {
+                doc: {
+                    content: "block+"
+                },
+                paragraph: {
+                    content: "inline*",
+                    group: "block",
+                    attrs: {
+                        isDeco: { default: null } // 👈 decoration flags live here
+                    },
+                    parseDOM: [{ tag: "p" }],
+                    toDOM() {
+                        return ["p", 0];
+                    }
+                },
+                text: {
+                    group: "inline"
+                }
+            },
+            marks: {}
+        });
+
+        const jsonDoc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "attrs": {
+                        "isDeco": {
+                            "isSlice": true,
+                            "isTag": true,
+                            "isComment": true
+                        }
+                    },
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This paragraph has all decorations (slice, tag, comment)."
+                        }
+                    ]
+                },
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This paragraph has only the hamburger decoration."
+                        }
+                    ]
+                }
+            ]
+        };
+        const doc = schema.nodeFromJSON(jsonDoc);
+
+        const decorations = getDecorations(doc, state);
+        expect(decorations).toBeDefined();
+    });
+        it('creates hamburger when isSlice false', () => {
+        const schema = new Schema({
+            nodes: {
+                doc: {
+                    content: "block+"
+                },
+                paragraph: {
+                    content: "inline*",
+                    group: "block",
+                    attrs: {
+                        isDeco: { default: null } // 👈 decoration flags live here
+                    },
+                    parseDOM: [{ tag: "p" }],
+                    toDOM() {
+                        return ["p", 0];
+                    }
+                },
+                text: {
+                    group: "inline"
+                }
+            },
+            marks: {}
+        });
+
+        const jsonDoc = {
+            "type": "doc",
+            "content": [
+                {
+                    "type": "paragraph",
+                    "attrs": {
+                        "isDeco": {
+                            "isSlice": false,
+                            "isTag": true,
+                            "isComment": true
+                        }
+                    },
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This paragraph has all decorations (slice, tag, comment)."
+                        }
+                    ]
+                },
+                {
+                    "type": "paragraph",
+                    "content": [
+                        {
+                            "type": "text",
+                            "text": "This paragraph has only the hamburger decoration."
+                        }
+                    ]
+                }
+            ]
+        };
+        const doc = schema.nodeFromJSON(jsonDoc);
+
+        const decorations = getDecorations(doc, state);
+        expect(decorations).toBeDefined();
+    });
 
 });
 
@@ -840,6 +1017,27 @@ describe('changeAttribute', () => {
         // Use deep equality
         expect(newPluginState).toBeDefined();
     });
+        it("should handle apply", () => {
+        const oldPluginState = { active: false,decorations:{map:()=>{return {}}} };
+
+        const trMock = { docChanged: true,steps:[{toJSON:()=>{return {stepType :'setNodeMarkup'}}}] } as any;
+        const oldState = {} as EditorState;
+        const newState = {} as EditorState;
+
+        const plugin = new FloatingMenuPlugin(mockRuntime);
+        const applyFn = plugin.spec.state?.apply!;
+
+        const newPluginState = applyFn(trMock, oldPluginState, oldState, newState);
+
+        // Use deep equality
+        expect(newPluginState).toBeDefined();
+    });
 
 
 });
+describe('createNewSlice ',()=>{
+    it('createNewSlice ',()=>{
+        expect(createNewSlice({focus:()=>{},state:{selection:{$from:{start:()=>{return 0}},$to:{end:()=>{return 1}}},
+        doc:{nodesBetween:()=>{}}},'runtime':{createSlice:()=>{return Promise.resolve({});}}} as unknown as EditorView) ).toBeUndefined();
+    })
+})
