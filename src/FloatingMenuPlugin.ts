@@ -10,7 +10,7 @@ import {
 import { FloatingMenu } from './FloatingPopup';
 import { v4 as uuidv4 } from 'uuid';
 import { insertReference } from '@mo/licit-referencing';
-import { addSliceToList, getDocumentslices, setSliceAtrrs, setSliceRuntime, setSlices } from './slice';
+import { createSliceManager } from './slice';
 import { FloatRuntime } from './model';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
@@ -28,12 +28,13 @@ interface SliceModel {
 export class FloatingMenuPlugin extends Plugin {
   _popUpHandle: PopUpHandle | null = null;
   _view: EditorView | null = null;
+  sliceManager: ReturnType<typeof createSliceManager>;
   constructor(sliceRuntime: FloatRuntime) {
+    const sliceManager = createSliceManager(sliceRuntime);
     super({
       key: CMPluginKey,
       state: {
         init(_config, state) {
-          setSliceRuntime(sliceRuntime);
           return {
             decorations: getDecorations(state.doc, state),
           };
@@ -72,6 +73,8 @@ export class FloatingMenuPlugin extends Plugin {
       },
       view: (view) => {
         (this as FloatingMenuPlugin)._view = view;
+        this.sliceManager = sliceManager; 
+        getDocSlices.call(this, view);     
 
         view.dom.addEventListener('pointerdown', (e) => {
           const targetEl = (e.target as HTMLElement).closest('.float-icon');
@@ -142,7 +145,6 @@ export class FloatingMenuPlugin extends Plugin {
         };
 
         document.addEventListener('click', outsideClickHandler);
-        getDocSlices(view);
         return {};
       },
     });
@@ -438,11 +440,11 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
 }
 
 // To retrieve all the document slices from the server and cache it.
-export async function getDocSlices(view: EditorView) {
+export async function getDocSlices(this: FloatingMenuPlugin, view: EditorView) {
   try {
-    const result = await getDocumentslices(view);
-    setSlices(result, view.state);
-    setSliceAtrrs(view);
+    const result = await this.sliceManager.getDocumentSlices(view);
+    this.sliceManager.setSlices(result, view.state);
+    this.sliceManager.setSliceAttrs(view);
   } catch (err) {
     console.error('Failed to load slices:', err);
   }
@@ -463,12 +465,15 @@ export function changeAttribute(_view: EditorView): void {
 }
 
 
-export function createNewSlice (_view: EditorView): void {
-  const sliceModel = createSliceObject(_view);
-  _view['runtime'].createSlice(sliceModel)
+export function createNewSlice(view: EditorView): void {
+  const sliceModel = createSliceObject(view);
+  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
+  if (!plugin) return;
+
+  view['runtime'].createSlice(sliceModel)
     .then((val) => {
-      addSliceToList(val);
-      changeAttribute(_view);
+      plugin.sliceManager.addSliceToList(val); 
+      changeAttribute(view);
     })
     .catch((err) => {
       console.error('createSlice failed with:', err);

@@ -3,51 +3,56 @@ import { EditorState } from 'prosemirror-state';
 import { Node } from 'prosemirror-model';
 import { FloatRuntime, SliceModel } from './model';
 
-let docSlices = new Array(0);
-let sliceRuntime: FloatRuntime;
+export function createSliceManager(runtime: FloatRuntime) {
+  let docSlices: SliceModel[] = [];
 
-export function setSliceRuntime(runtime:FloatRuntime) {
-  sliceRuntime = runtime;
-}
+  // store slices in cache
+  function setSlices(slices: SliceModel[], state: EditorState) {
+    const objectId = state.doc.attrs.objectId;
+    const filteredSlices = slices.filter((slice) => slice.source === objectId);
+    docSlices = [...docSlices, ...filteredSlices];
+  }
 
-// store slices in cache
-export function setSlices(slices: SliceModel[], _state: EditorState) {
-  const objectId = _state.doc.attrs.objectId;
-  const filteredSlices = slices.filter((slice) => slice.source === objectId);
-  docSlices = [...docSlices, ...filteredSlices];
-}
+  function getDocSlices() {
+    return docSlices;
+  }
 
-export function getdocSlices() {
-  return docSlices;
-}
+  // retrieve document slices from server
+  function getDocumentSlices(_view: EditorView): Promise<SliceModel[]> {
+    return runtime?.retrieveSlices();
+  }
 
-// method to retrieve document Slice from the server.
-export function getDocumentslices(_view: EditorView): Promise<SliceModel[]> {
-  return sliceRuntime?.retrieveSlices();
-}
+  // add new slice to cache
+  function addSliceToList(slice: SliceModel) {
+    docSlices.push(slice);
+    return docSlices;
+  }
 
-// add the newly created slice to the cache
-export function addSliceToList(slice: SliceModel) {
-  docSlices.push(slice);
-  return docSlices;
-}
+  // apply slice attributes to the doc
+  function setSliceAttrs(view: EditorView) {
+    const result = getDocSlices();
+    let tr = view.state.tr;
 
-export function setSliceAtrrs(view: EditorView) {
-  const result = getdocSlices();
-  let tr = view.state.tr;
-  result.forEach((obj) => {
-    view.state.doc.descendants((nodeactual: Node, pos) => {
-      if (nodeactual?.attrs?.objectId === obj?.from) {
-      const newattrs = { ...nodeactual.attrs };
-        if (newattrs) {
-            const isDeco = { ...(newattrs.isDeco || {}) };
-            isDeco.isSlice = true;
-            newattrs.isDeco = isDeco;
+    result.forEach((obj) => {
+      view.state.doc.descendants((nodeactual: Node, pos) => {
+        if (nodeactual?.attrs?.objectId === obj?.from) {
+          const newattrs = { ...nodeactual.attrs };
+          const isDeco = { ...(newattrs.isDeco || {}) };
+          isDeco.isSlice = true;
+          newattrs.isDeco = isDeco;
           tr = tr.setNodeMarkup(pos, undefined, newattrs);
         }
-      }
+      });
     });
-  });
-  view.dispatch(tr);
-}
 
+    view.dispatch(tr);
+  }
+
+  return {
+    setSlices,
+    getDocSlices,
+    getDocumentSlices,
+    addSliceToList,
+    setSliceAttrs,
+  };
+}
