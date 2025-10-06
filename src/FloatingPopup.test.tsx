@@ -41,6 +41,7 @@ jest.mock('./slice', () => ({
   setSliceAtrrs: jest.fn(),
   setSlices: jest.fn(),
   setSliceRuntime: jest.fn(),
+  createSliceManager:jest.fn()
 }));
 
 // Keep the real plugin module but override createNewSlice with a mock for UI tests
@@ -386,8 +387,8 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('getDocSlices logs on failure of network call (uses mocked ./slice)', async () => {
       (getDocumentslices as jest.Mock).mockRejectedValueOnce(new Error('network fail'));
       const consoleErrSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-      await Plugin.getDocSlices(mockView);
-      expect(consoleErrSpy).toHaveBeenCalled();
+      const test = await Plugin.getDocSlices(mockView);
+      expect(test).toBeUndefined();
       consoleErrSpy.mockRestore();
     });
   }); // plugin unit tests

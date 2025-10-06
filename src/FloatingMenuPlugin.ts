@@ -73,8 +73,8 @@ export class FloatingMenuPlugin extends Plugin {
       },
       view: (view) => {
         (this as FloatingMenuPlugin)._view = view;
-        this.sliceManager = sliceManager; 
-        getDocSlices.call(this, view);     
+        this.sliceManager = sliceManager;
+        getDocSlices.call(this, view);
 
         view.dom.addEventListener('pointerdown', (e) => {
           const targetEl = (e.target as HTMLElement).closest('.float-icon');
@@ -442,9 +442,9 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
 // To retrieve all the document slices from the server and cache it.
 export async function getDocSlices(this: FloatingMenuPlugin, view: EditorView) {
   try {
-    const result = await this.sliceManager.getDocumentSlices(view);
-    this.sliceManager.setSlices(result, view.state);
-    this.sliceManager.setSliceAttrs(view);
+    const result = await this.sliceManager?.getDocumentSlices(view);
+    this.sliceManager?.setSlices(result, view.state);
+    this.sliceManager?.setSliceAttrs(view);
   } catch (err) {
     console.error('Failed to load slices:', err);
   }
@@ -472,7 +472,7 @@ export function createNewSlice(view: EditorView): void {
 
   view['runtime'].createSlice(sliceModel)
     .then((val) => {
-      plugin.sliceManager.addSliceToList(val); 
+      plugin.sliceManager.addSliceToList(val);
       changeAttribute(view);
     })
     .catch((err) => {

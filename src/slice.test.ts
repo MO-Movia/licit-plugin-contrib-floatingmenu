@@ -1,161 +1,146 @@
-
+import { createSliceManager } from './slice';
 import { EditorView } from 'prosemirror-view';
-import { EditorState } from 'prosemirror-state';
-import { Node as ProseMirrorNode } from 'prosemirror-model';
-import {
-    setSliceRuntime,
-    setSlices,
-    getdocSlices,
-    getDocumentslices,
-    addSliceToList,
-    setSliceAtrrs
-} from './slice';
-import { FloatRuntime,SliceModel } from './model';
+import { EditorState, Transaction } from 'prosemirror-state';
+import { Node } from 'prosemirror-model';
+import { FloatRuntime, SliceModel } from './model';
 
-describe('sliceStore', () => {
-    const mockSlice: SliceModel = {
-        name: 'Test Slice',
-        description: 'Test Description',
+describe('createSliceManager', () => {
+  let runtimeMock: jest.Mocked<FloatRuntime>;
+  let manager: ReturnType<typeof createSliceManager>;
+
+beforeEach(() => {
+  runtimeMock = {
+    // properly mock createSlice returning a full SliceModel
+    createSlice: jest.fn().mockResolvedValue({
+      id: '999',
+      source: 'mock',
+      from: 'mock-from',
+      to: 'mock-to',
+      name: 'Mock Slice',
+      description: 'A mock slice for testing',
+      referenceType: 'mock',
+      ids: ['mock-id'],
+    } as SliceModel),
+
+    // properly mock retrieveSlices returning an array of full SliceModels
+    retrieveSlices: jest.fn().mockResolvedValue([
+      {
         id: '1',
-        referenceType: 'type1',
-        source: 'obj1',
-        from: 'a',
-        to: 'b',
-        ids: ['1']
-    };
+        source: 'doc-1',
+        from: 'node-1',
+        to: 'node-1-end',
+        name: 'Test Slice',
+        description: 'Mock slice for testing',
+        referenceType: 'mock',
+        ids: ['node-1'],
+      } as SliceModel,
+    ]),
+  };
 
-    let mockState: EditorState;
-
-    beforeEach(() => {
-        // Reset internal docSlices
-        const slices = getdocSlices();
-        slices.length = 0;
-
-        // Reset runtime
-        setSliceRuntime(undefined as unknown as FloatRuntime);
-
-        // Mock EditorState
-        mockState = {
-            doc: { attrs: { objectId: 'obj1' } } as unknown as ProseMirrorNode
-        } as EditorState;
-    });
-
-    test('setSliceRuntime sets the runtime and getDocumentslices calls it', async () => {
-        const runtime = { retrieveSlices: jest.fn().mockResolvedValue([mockSlice]) };
-        setSliceRuntime(runtime);
-
-        const slices = await getDocumentslices({} as EditorView);
-        expect(runtime.retrieveSlices).toHaveBeenCalled();
-        expect(slices).toEqual([mockSlice]);
-    });
-
-    test('getDocumentslices returns undefined if runtime not set', async () => {
-        const result = await getDocumentslices({} as EditorView);
-        expect(result).toBeUndefined();
-    });
-
-    test('setSlices filters slices by objectId and stores them', () => {
-        const slices: SliceModel[] = [
-            { ...mockSlice },
-            { ...mockSlice, id: '2', source: 'otherObj' }
-        ];
-
-        setSlices(slices, mockState);
-        const storedSlices = getdocSlices();
-
-        expect(storedSlices.length).toBe(1);
-        expect(storedSlices[0].id).toBe('1');
-    });
-
-    test('getdocSlices returns stored slices', () => {
-        setSlices([mockSlice], mockState);
-        const slices = getdocSlices();
-        expect(slices).toHaveLength(1);
-        expect(slices[0].name).toBe('Test Slice');
-    });
-
-    test('addSliceToList adds a slice and returns updated array', () => {
-        const result = addSliceToList(mockSlice);
-        expect(result).toContain(mockSlice);
-        expect(getdocSlices()).toContain(mockSlice);
-    });
-
-    test('setSlices appends to existing slices', () => {
-        setSlices([mockSlice], mockState);
-        const newSlice: SliceModel = { ...mockSlice, id: '3' };
-        setSlices([newSlice], mockState);
-
-        const slices = getdocSlices();
-        expect(slices.length).toBe(2);
-        expect(slices.map(s => s.id)).toEqual(['1', '3']);
-    });
+  manager = createSliceManager(runtimeMock);
 });
 
-describe('setSliceAtrrs', () => {
-    let mockView: EditorView;
+  it('should initialize with empty slice list', () => {
+    expect(manager.getDocSlices()).toEqual([]);
+  });
 
-    beforeEach(() => {
-        // Reset module-level state
-        getdocSlices().length = 0;
-        setSliceRuntime(undefined as unknown as FloatRuntime);
+  it('should set slices filtering by doc objectId', () => {
+    const mockState = {
+      doc: { attrs: { objectId: 'doc-1' } },
+    } as unknown as EditorState;
 
-        // Mock view, doc, tr
-        const tr = {
-            setNodeMarkup: jest.fn().mockImplementation(() => {
-                return tr;
-            }),
-        };
+    const slices = [
+      { id: 1, source: 'doc-1', from: 'node-1' },
+      { id: 2, source: 'doc-2', from: 'node-2' },
+    ] as unknown as SliceModel[];
 
-        const nodeWithAttrs = { attrs: { objectId: 'fromId' } };
-        const nodeWithoutAttrs = {};
+    manager.setSlices(slices, mockState);
 
-        const doc = {
-            descendants: jest.fn((callback) => {
-                callback(nodeWithAttrs, 1);  // matching node
-                callback(nodeWithoutAttrs, 2); // non-matching node
-                return true;
-            }),
-        };
+    const result = manager.getDocSlices();
+    expect(result).toHaveLength(1);
+    expect(result[0].source).toBe('doc-1');
+  });
 
-        const state = {
-            tr,
-            doc,
-        };
+  it('should add new slice to cache', () => {
+    const slice = { id: 3, source: 'doc-3', from: 'node-3' } as unknown as SliceModel;
+    const updated = manager.addSliceToList(slice);
 
-        mockView = {
-            state,
-            dispatch: jest.fn(),
-        } as unknown as EditorView;
-    });
+    expect(updated).toContainEqual(slice);
+  });
 
-    test('sets isDeco.isSlice for matching node', () => {
-        const slice = { ids: 'slice1', from: 'fromId', to: 'slice1', source: undefined, name: 'Untitled', id: 'http://modusoperandi.com/editor/instance/slice1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
+it('should retrieve document slices from runtime', async () => {
+  const mockView = {} as EditorView;
 
-        addSliceToList(slice as unknown as SliceModel);
+  const expectedSlices: SliceModel[] = [
+    {
+      id: '1',
+      source: 'doc-1',
+      from: 'node-1',
+      to: 'node-1-end',
+      name: 'Test Slice',
+      description: 'Mock slice for testing',
+      referenceType: 'mock',
+      ids: ['node-1'],
+    },
+  ];
 
-        setSliceAtrrs(mockView as EditorView);
+  // Make sure the runtime mock returns the same full slice
+  runtimeMock.retrieveSlices.mockResolvedValue(expectedSlices);
 
-        expect(mockView.state.doc.descendants).toHaveBeenCalled();
-        expect(mockView.state.tr.setNodeMarkup).toHaveBeenCalledWith(
-            1,
-            undefined,
-            expect.objectContaining({
-                isDeco: { isSlice: true },
-            })
-        );
-        expect(mockView.dispatch).toHaveBeenCalled();
-    });
+  const slices = await manager.getDocumentSlices(mockView);
 
-    test('skips node if objectId does not match', () => {
-         const slice = { ids: 'slice1', from: 'otherId', to: 'slice1', source: undefined, name: 'Untitled', id: 'http://modusoperandi.com/editor/instance/slice1', referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes', description: '' };
-        addSliceToList(slice as unknown as SliceModel);
+  expect(runtimeMock.retrieveSlices).toHaveBeenCalled();
+  expect(slices).toEqual(expectedSlices);
+});
 
-        setSliceAtrrs(mockView as EditorView);
+  it('should set slice attrs on matching nodes', () => {
+  const mockDispatch = jest.fn();
 
-        // setNodeMarkup should NOT be called for non-matching node
-        expect(mockView.state.tr.setNodeMarkup).not.toHaveBeenCalled();
+  const mockTr = {
+    setNodeMarkup: jest.fn().mockReturnThis(),
+  } as unknown as Transaction;
 
-        expect(mockView.dispatch).toHaveBeenCalled();
-    });
+  const mockNode = {
+    attrs: { objectId: 'node-1' },
+  } as unknown as Node;
 
+  const mockView = {
+    state: {
+      tr: mockTr,
+      doc: {
+        descendants: (callback: (node: Node, pos: number) => void) => {
+          callback(mockNode, 42);
+        },
+      },
+    },
+    dispatch: mockDispatch,
+  } as unknown as EditorView;
+
+  manager.addSliceToList({
+    id: '1',
+    source: 'doc-1',
+    from: 'node-1',
+    to: 'node-1-end',
+    name: 'Test Slice',
+    description: 'Mock slice',
+    referenceType: 'mock',
+    ids: ['node-1'],
+  });
+
+  // 👇 spy on the mockTr instance
+  const setNodeMarkupSpy = jest.spyOn(mockTr, 'setNodeMarkup');
+
+  manager.setSliceAttrs(mockView);
+
+  expect(setNodeMarkupSpy).toHaveBeenCalledWith(
+    42,
+    undefined,
+    expect.objectContaining({
+      isDeco: expect.objectContaining({ isSlice: true }),
+    }),
+  );
+  expect(mockDispatch).toHaveBeenCalledWith(mockTr);
+
+  setNodeMarkupSpy.mockRestore();
+});
 });

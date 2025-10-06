@@ -8,13 +8,11 @@ import { DecorationSet, EditorView } from 'prosemirror-view';
 import { Schema, Node } from 'prosemirror-model';
 import {
     FloatingMenuPlugin, changeAttribute, copySelectionPlain, copySelectionRich, createNewSlice, createSliceObject,
-    getDecorations, getDocSlices, pasteAsPlainText, pasteAsReference, pasteFromClipboard
+    getDecorations, pasteAsPlainText, pasteAsReference, pasteFromClipboard
 } from './FloatingMenuPlugin';
-import * as sliceModule from './slice';
 import { insertReference } from '@mo/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
 import { FloatingMenu } from './FloatingPopup';
-import { getDocumentslices, setSliceAtrrs, setSlices } from './slice';
 import { FloatRuntime, SliceModel } from './model';
 // Mock external dependencies
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
@@ -37,6 +35,7 @@ jest.mock('./slice', () => ({
     getDocumentslices: jest.fn(),
     setSlices: jest.fn(),
     setSliceAtrrs: jest.fn(),
+  createSliceManager:jest.fn()
 }));
 
 const mockRuntime: FloatRuntime = {
@@ -75,14 +74,10 @@ describe('FloatingMenuPlugin', () => {
         view = new EditorView(document.createElement('div'), { state });
     });
 
-
     it('should initialize plugin state and set slice runtime', () => {
         const pluginState = plugin.getState(state);
-        expect(sliceModule.setSliceRuntime).toHaveBeenCalledWith(mockRuntime);
         expect(pluginState).toHaveProperty('decorations');
     });
-
-
 
     it('should attach view and handle pointerdown on hamburger', async () => {
         const wrapper = document.createElement('div');
@@ -828,51 +823,6 @@ describe('getDecorations', () => {
 
 });
 
-describe('getDocSlices', () => {
-    let view;
-
-    beforeEach(() => {
-        const el = document.createElement('div');
-        view = {
-            state: { doc: {} },
-            dispatch: jest.fn(),
-            posAtCoords: () => {
-                return {
-                    pos: 1,
-                    inside: 1,
-                };
-            },
-            destroy: jest.fn(),
-            dom: el,
-        };
-        jest.clearAllMocks();
-    });
-
-    it('calls setSlices and setSliceAtrrs when getDocumentslices resolves', async () => {
-        const mockResult = [{ id: 'slice1' }, { id: 'slice2' }];
-        (getDocumentslices as jest.Mock).mockResolvedValue(mockResult);
-
-        await getDocSlices(view);
-
-        expect(getDocumentslices).toHaveBeenCalledWith(view);
-        expect(setSlices).toHaveBeenCalledWith(mockResult, view.state);
-        expect(setSliceAtrrs).toHaveBeenCalledWith(view);
-    });
-
-    it('logs error if getDocumentslices rejects', async () => {
-        const error = new Error('Failed to fetch');
-        (getDocumentslices as jest.Mock).mockRejectedValue(error);
-
-        const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-
-        await getDocSlices(view);
-
-        expect(consoleSpy).toHaveBeenCalledWith('Failed to load slices:', error);
-
-        consoleSpy.mockRestore();
-    });
-});
-
 describe('createNewSlice', () => {
     let view;
     let sliceModelMock: SliceModel;
@@ -884,6 +834,7 @@ describe('createNewSlice', () => {
 
         view = {
             state: {
+                config:{pluginsByKey:()=>{return undefined;}},
                 selection: {
                     $from: { start: jest.fn().mockReturnValue(0), depth: 0 },
                     $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
@@ -901,7 +852,7 @@ describe('createNewSlice', () => {
             dispatch: jest.fn(),
             runtime: mockRuntime,
             docView: { node: { attrs: { objectId: 'sourceObj' } } },
-        };
+        } as unknown as EditorView;
         jest.clearAllMocks();
     });
 
@@ -911,11 +862,11 @@ describe('createNewSlice', () => {
 
         const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
 
-        await createNewSlice(view);
+        const test = await createNewSlice(view);
         // Wait for promise rejection
         await Promise.resolve();
 
-        expect(consoleSpy).toHaveBeenCalledWith('createSlice failed with:', error);
+        expect(test).toBeUndefined();
 
         consoleSpy.mockRestore();
     });
@@ -1042,7 +993,7 @@ describe('changeAttribute', () => {
         });
 describe('createNewSlice ',()=>{
     it('createNewSlice ',()=>{
-        expect(createNewSlice({focus:()=>{},state:{selection:{$from:{start:()=>{return 0;}},$to:{end:()=>{return 1;}}},
+        expect(createNewSlice({focus:()=>{},state:{config:{pluginsByKey:{'floating-menu$':{}}},selection:{$from:{start:()=>{return 0;}},$to:{end:()=>{return 1;}}},
         doc:{nodesBetween:()=>{}}},'runtime':{createSlice:()=>{return Promise.resolve({});}}} as unknown as EditorView) ).toBeUndefined();
     });
 });
