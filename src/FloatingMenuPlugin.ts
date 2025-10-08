@@ -72,81 +72,56 @@ export class FloatingMenuPlugin extends Plugin {
         },
       },
       view: (view) => {
-        (this as FloatingMenuPlugin)._view = view;
-        this.sliceManager = sliceManager;
-        getDocSlices.call(this, view);
+        const plugin = this as FloatingMenuPlugin;
+        plugin._view = view;
+        plugin.sliceManager = sliceManager;
+        getDocSlices.call(plugin, view);
 
         view.dom.addEventListener('pointerdown', (e) => {
-          const targetEl = (e.target as HTMLElement).closest('.float-icon');
+          const targetEl = (e.target as HTMLElement).closest('.float-icon') as HTMLElement;
           if (!targetEl) return;
 
           e.preventDefault();
           e.stopPropagation();
 
-          const hamburger = targetEl as HTMLElement;
-          const wrapper = hamburger.closest('.pm-hamburger-wrapper') as HTMLElement;
-          const pos = Number(hamburger.dataset.pos);
-
-          const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin | null;
-          if (!plugin || !plugin._view) return;
-
-          if (plugin._popUpHandle) {
-            plugin._popUpHandle.close(null);
-            plugin._popUpHandle = null;
-            wrapper?.classList.remove('popup-open');
-            return;
-          }
-
+          const wrapper = targetEl.closest('.pm-hamburger-wrapper') as HTMLElement;
           wrapper?.classList.add('popup-open');
 
-          clipboardHasProseMirrorData().then((hasPM) => {
-            plugin._popUpHandle = createPopUp(
-              FloatingMenu,
-              {
-                editorState: view.state, editorView: view, paragraphPos: pos, pasteAsReferenceEnabled: hasPM, copyRichHandler: () => {
-                  copySelectionRich(view, plugin);
-                },
-                copyPlainHandler: () => {
-                  copySelectionPlain(view, plugin);
-                },
-                pasteHandler: () => {
-                  pasteFromClipboard(view, plugin);
-                },
-                pasteAsReferenceHandler: () => {
-                  pasteAsReference(view, plugin);
-                },
-                pastePlainHandler: () => {
-                  pasteAsPlainText(view, plugin);
-                }
-              },
-              {
-                anchor: hamburger,
-                position: atAnchorBottomLeft,
-                autoDismiss: false,
-                onClose: () => {
-                  plugin._popUpHandle = null;
-                  wrapper?.classList.remove('popup-open');
-                },
-              }
-            );
-          });
+          const pos = Number(targetEl.dataset.pos);
+          openFloatingMenu(plugin, view, pos, targetEl);
         });
 
-        const outsideClickHandler = (e: MouseEvent) => {
-          const el = e.target as HTMLElement;
-          if (
-            this._popUpHandle &&
-            !el.closest('.context-menu') &&
-            !el.closest('.float-icon')
-          ) {
-            this._popUpHandle.close(null);
-            this._popUpHandle = null;
-          }
-        };
+        // --- Alt + Right Click handler ---
+        view.dom.addEventListener('contextmenu', (e: MouseEvent) => {
+          if (e.altKey && e.button === 2) {
+            e.preventDefault();
+            e.stopPropagation();
 
-        document.addEventListener('click', outsideClickHandler);
-        return {};
-      },
+      let pos = {
+      x: e ? e.clientX : 0,
+      y: e ? e.clientY : 0,
+    };
+
+      openFloatingMenu(plugin, view, undefined, undefined, pos); 
+    }
+  });
+
+  // --- Close popup on outside click ---
+  const outsideClickHandler = (e: MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (
+      plugin._popUpHandle &&
+      !el.closest('.context-menu') &&
+      !el.closest('.float-icon')
+    ) {
+      plugin._popUpHandle.close(null);
+      plugin._popUpHandle = null;
+    }
+  };
+  document.addEventListener('click', outsideClickHandler);
+  return {};
+},
+
     });
   }
 
@@ -437,6 +412,63 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
       }
   });
   return DecorationSet.create(state.doc, decorations);
+}
+
+export function openFloatingMenu(
+  plugin: FloatingMenuPlugin,
+  view: EditorView,
+  pos: number,
+  anchorEl?: HTMLElement,
+  contextPos?: { x: number; y: number }
+) {
+  // Close existing popup if any
+  if (plugin._popUpHandle) {
+    plugin._popUpHandle.close(null);
+    plugin._popUpHandle = null;
+  }
+
+  // Determine if clipboard has ProseMirror data
+  clipboardHasProseMirrorData().then((hasPM) => {
+    plugin._popUpHandle = createPopUp(
+      FloatingMenu,
+      {
+        editorState: view.state,
+        editorView: view,
+        paragraphPos: pos,
+        pasteAsReferenceEnabled: hasPM,
+        copyRichHandler: () => copySelectionRich(view, plugin),
+        copyPlainHandler: () => copySelectionPlain(view, plugin),
+        pasteHandler: () => pasteFromClipboard(view, plugin),
+        pasteAsReferenceHandler: () => pasteAsReference(view, plugin),
+        pastePlainHandler: () => pasteAsPlainText(view, plugin),
+      },
+      {
+        anchor: anchorEl || view.dom,
+        contextPos: contextPos,
+        position: atAnchorBottomLeft,
+        autoDismiss: false,
+        onClose: () => {
+          plugin._popUpHandle = null;
+          // Remove 'popup-open' class if anchor is a hamburger wrapper
+          anchorEl?.closest('.pm-hamburger-wrapper')?.classList.remove('popup-open');
+        },
+      }
+    );
+  });
+}
+
+export function addAltRightClickHandler(view: EditorView, plugin: FloatingMenuPlugin) {
+  view.dom.addEventListener("contextmenu", (e: MouseEvent) => {
+    if (e.altKey && e.button === 2) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const pos = view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos;
+      if (pos == null) return;
+
+      openFloatingMenu(plugin, view, pos);
+    }
+  });
 }
 
 // To retrieve all the document slices from the server and cache it.
