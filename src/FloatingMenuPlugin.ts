@@ -93,7 +93,7 @@ export class FloatingMenuPlugin extends Plugin {
 
         // --- Alt + Right Click handler ---
         view.dom.addEventListener('contextmenu', (e: MouseEvent) => {
-          if (e.altKey && e.button === 2) {
+          if (e.altKey && e.button === 2 && view.editable) {
             e.preventDefault();
             e.stopPropagation();
 
