@@ -13,5 +13,11 @@ export interface FloatRuntime {
   createSlice(slice: SliceModel): Promise<SliceModel>;
 
   retrieveSlices(): Promise<SliceModel[]>;
+
+  insertInfoIconFloat(): void;
+
+  insertCitationFloat(): void;
+
+  insertReference(): Promise<SliceModel>;
 }
 

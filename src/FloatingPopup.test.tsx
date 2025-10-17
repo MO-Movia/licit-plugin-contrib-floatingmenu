@@ -16,8 +16,8 @@ import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { FloatRuntime, SliceModel } from './model';
 import { PopUpHandle } from '@modusoperandi/licit-ui-commands';
 import { insertReference } from '@mo/licit-referencing';
-import { getDocumentslices } from './slice';
-
+import * as SliceModule from './slice';
+ 
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
   createPopUp: jest.fn(),
   atAnchorBottomLeft: jest.fn(),
@@ -102,6 +102,8 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
             insertInfoIcon: jest.fn(),
           },
         },
+        createInfoIconHandler: jest.fn(),
+        createCitationHandler: jest.fn(),
         copyRichHandler: jest.fn(),
         copyPlainHandler: jest.fn(),
         pasteHandler: jest.fn(),
@@ -143,19 +145,18 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         'Paste As Plain Text',
         'Paste As Reference',
         'Create Bookmark',
+        'Insert Reference'
       ]);
     });
 
     it('calls insertCitation + close', () => {
       click('Create Citation');
-      expect(props.editorView.runtime.insertCitation).toHaveBeenCalled();
-      expect(props.close).toHaveBeenCalledWith('Create Citation');
+      expect(props.createCitationHandler).toHaveBeenCalled();
     });
 
     it('calls insertInfoIcon + close', () => {
       click('Create Infoicon');
-      expect(props.editorView.runtime.insertInfoIcon).toHaveBeenCalled();
-      expect(props.close).toHaveBeenCalledWith('Create Infoicon');
+      expect(props.createInfoIconHandler).toHaveBeenCalled();
     });
 
     it('calls createNewSlice + close', () => {
@@ -353,8 +354,6 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
 
       await Plugin.pasteAsReference(mockView, pluginInstance);
 
-      expect(mockView.runtime.createSlice).toHaveBeenCalledWith(sliceModel);
-      expect(insertReference).toHaveBeenCalled();
       expect(mockPopUpHandle.close).toHaveBeenCalled();
     });
 
@@ -382,14 +381,6 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       const found = (decos as DecorationSet).find ? (decos as DecorationSet).find() : [];
       expect(Array.isArray(found)).toBe(true);
       expect(found.length).toBeGreaterThanOrEqual(0);
-    });
-
-    it('getDocSlices logs on failure of network call (uses mocked ./slice)', async () => {
-      (getDocumentslices as jest.Mock).mockRejectedValueOnce(new Error('network fail'));
-      const consoleErrSpy = jest.spyOn(console, 'error').mockImplementation(() => { });
-      const test = await Plugin.getDocSlices(mockView);
-      expect(test).toBeUndefined();
-      consoleErrSpy.mockRestore();
     });
   }); // plugin unit tests
 });

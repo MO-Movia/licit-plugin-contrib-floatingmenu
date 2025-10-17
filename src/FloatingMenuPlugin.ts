@@ -40,31 +40,31 @@ export class FloatingMenuPlugin extends Plugin {
           };
         },
         apply(tr, prev, _oldState, newState) {
-        let decos = prev.decorations;
+          let decos = prev.decorations;
 
-        if (!tr.docChanged) {
-          return { decorations: decos?.map(tr.mapping, tr.doc) };
-        }
+          if (!tr.docChanged) {
+            return { decorations: decos?.map(tr.mapping, tr.doc) };
+          }
 
-        decos = decos.map(tr.mapping, tr.doc);
+          decos = decos.map(tr.mapping, tr.doc);
 
-        const requiresRescan =
-          tr.steps.some((step) => {
-            const s = step.toJSON();
-            return (
-              s.stepType === 'replace' ||
-              s.stepType === 'replaceAround' ||
-              s.stepType === 'setNodeMarkup'
-            );
-          }) ||
-          tr.getMeta(CMPluginKey)?.forceRescan;
+          const requiresRescan =
+            tr.steps.some((step) => {
+              const s = step.toJSON();
+              return (
+                s.stepType === 'replace' ||
+                s.stepType === 'replaceAround' ||
+                s.stepType === 'setNodeMarkup'
+              );
+            }) ||
+            tr.getMeta(CMPluginKey)?.forceRescan;
 
-        if (requiresRescan) {
-          decos = getDecorations(tr.doc, newState);
-        }
+          if (requiresRescan) {
+            decos = getDecorations(tr.doc, newState);
+          }
 
-        return { decorations: decos };
-      },
+          return { decorations: decos };
+        },
       },
       props: {
         decorations(state) {
@@ -97,30 +97,30 @@ export class FloatingMenuPlugin extends Plugin {
             e.preventDefault();
             e.stopPropagation();
 
-      let pos = {
-      x: e ? e.clientX : 0,
-      y: e ? e.clientY : 0,
-    };
+            let pos = {
+              x: e ? e.clientX : 0,
+              y: e ? e.clientY : 0,
+            };
 
-      openFloatingMenu(plugin, view, undefined, undefined, pos); 
-    }
-  });
+            openFloatingMenu(plugin, view, undefined, undefined, pos);
+          }
+        });
 
-  // --- Close popup on outside click ---
-  const outsideClickHandler = (e: MouseEvent) => {
-    const el = e.target as HTMLElement;
-    if (
-      plugin._popUpHandle &&
-      !el.closest('.context-menu') &&
-      !el.closest('.float-icon')
-    ) {
-      plugin._popUpHandle.close(null);
-      plugin._popUpHandle = null;
-    }
-  };
-  document.addEventListener('click', outsideClickHandler);
-  return {};
-},
+        // --- Close popup on outside click ---
+        const outsideClickHandler = (e: MouseEvent) => {
+          const el = e.target as HTMLElement;
+          if (
+            plugin._popUpHandle &&
+            !el.closest('.context-menu') &&
+            !el.closest('.float-icon')
+          ) {
+            plugin._popUpHandle.close(null);
+            plugin._popUpHandle = null;
+          }
+        };
+        document.addEventListener('click', outsideClickHandler);
+        return {};
+      },
 
     });
   }
@@ -227,7 +227,7 @@ export function copySelectionPlain(view: EditorView, plugin: FloatingMenuPlugin)
   navigator.clipboard.writeText(text)
     .then(() => console.log('Plain text copied!'))
     .catch((err) => console.error('Clipboard write failed:', err));
-      if (plugin._popUpHandle?.close) {
+  if (plugin._popUpHandle?.close) {
     plugin._popUpHandle.close(null);
     plugin._popUpHandle = null;
   }
@@ -264,33 +264,36 @@ export async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuP
 export async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlugin) {
   try {
     if (!view.hasFocus()) view.focus();
-
     const text = await navigator.clipboard.readText();
     const parsed = JSON.parse(text);
-
     const sliceModel: SliceModel = parsed.sliceModel;
 
-      view['runtime']
-      .createSlice(sliceModel)
-      .then((val) => {
-      insertReference(
-      view,
-      sliceModel.id,
-      sliceModel.source,
-      view['docView']?.node?.attrs?.objectMetaData.name
-    );
-        console.log('slice resolved with:', val);
-      })
-      .catch((err) => {
-        console.error('slice failed with:', err);
-      });
-  } catch (err) {
-    console.error('Failed to paste content from clipboard:', err);
-  }
+    if (!plugin.sliceManager?.createSliceViaDialog) {
+      throw new Error('SliceManager or createSliceViaDialog is not initialized');
+    }
 
-  if (plugin._popUpHandle?.close) {
-    plugin._popUpHandle.close(null);
-    plugin._popUpHandle = null;
+    const val = await plugin.sliceManager.createSliceViaDialog(sliceModel);
+
+    if (!val) {
+      console.warn('Slice creation returned no value, skipping insertReference.');
+      return;
+    }
+    insertReference(
+      view,
+      val.id,
+      val.source,
+      view['docView']?.node?.attrs?.objectMetaData?.name
+    );
+
+    console.log('Slice created successfully:', val);
+
+  } catch (err) {
+    console.error('Failed to paste content or create slice:', err);
+  } finally {
+    if (plugin._popUpHandle?.close) {
+      plugin._popUpHandle.close(null);
+      plugin._popUpHandle = null;
+    }
   }
 }
 
@@ -351,65 +354,65 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
 
   doc?.forEach((node: Node, pos: number) => {
     if (node.type.name !== 'paragraph') return;
-      const wrapper = document.createElement('span');
-      wrapper.className = 'pm-hamburger-wrapper';
+    const wrapper = document.createElement('span');
+    wrapper.className = 'pm-hamburger-wrapper';
 
-      const hamburger = document.createElement('span');
-      // ✅ Use FontAwesome
-      hamburger.className = 'float-icon fa fa-bars';
-      hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
-      hamburger.dataset.pos = String(pos);
+    const hamburger = document.createElement('span');
+    // ✅ Use FontAwesome
+    hamburger.className = 'float-icon fa fa-bars';
+    hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
+    hamburger.dataset.pos = String(pos);
 
-      wrapper.appendChild(hamburger);
+    wrapper.appendChild(hamburger);
 
-      decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
-      const decoFlags = node.attrs?.isDeco;
-      if (!decoFlags) return;
-        if (
-          decoFlags.isSlice ||
-          decoFlags.isTag ||
-          decoFlags.isComment
-        ) {
-        // --- Container for gutter marks ---
-        const container = document.createElement('span');
-        container.style.position = 'absolute';
-        container.style.left = '27px';
-        container.style.display = 'inline-flex';
-        container.style.gap = '6px';
-        container.style.alignItems = 'center';
-        container.contentEditable = 'false';
-        container.style.userSelect = 'none';
+    decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
+    const decoFlags = node.attrs?.isDeco;
+    if (!decoFlags) return;
+    if (
+      decoFlags.isSlice ||
+      decoFlags.isTag ||
+      decoFlags.isComment
+    ) {
+      // --- Container for gutter marks ---
+      const container = document.createElement('span');
+      container.style.position = 'absolute';
+      container.style.left = '27px';
+      container.style.display = 'inline-flex';
+      container.style.gap = '6px';
+      container.style.alignItems = 'center';
+      container.contentEditable = 'false';
+      container.style.userSelect = 'none';
 
-        // --- Slice ---
-        if (decoFlags.isSlice) {
-          const SliceMark = document.createElement('span');
-          SliceMark.id = `slicemark-${uuidv4()}`;
-          SliceMark.style.fontFamily = 'FontAwesome';
-          SliceMark.innerHTML = '&#xf097';
-          SliceMark.onclick = () => console.log('Slice deco clicked');
-          container.appendChild(SliceMark);
-        }
-
-        // --- Tag ---
-        if (decoFlags.isTag) {
-          const TagMark = document.createElement('span');
-          TagMark.style.fontFamily = 'FontAwesome';
-          TagMark.innerHTML = '&#xf02b;';
-          TagMark.onclick = () => console.log('Tag deco clicked');
-          container.appendChild(TagMark);
-        }
-
-        // --- Comment ---
-        if (decoFlags.isComment) {
-          const CommentMark = document.createElement('span');
-          CommentMark.style.fontFamily = 'FontAwesome';
-          CommentMark.innerHTML = '&#xf075;';
-          CommentMark.onclick = () => console.log('Comment deco clicked');
-          container.appendChild(CommentMark);
-        }
-
-        decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
+      // --- Slice ---
+      if (decoFlags.isSlice) {
+        const SliceMark = document.createElement('span');
+        SliceMark.id = `slicemark-${uuidv4()}`;
+        SliceMark.style.fontFamily = 'FontAwesome';
+        SliceMark.innerHTML = '&#xf097';
+        SliceMark.onclick = () => console.log('Slice deco clicked');
+        container.appendChild(SliceMark);
       }
+
+      // --- Tag ---
+      if (decoFlags.isTag) {
+        const TagMark = document.createElement('span');
+        TagMark.style.fontFamily = 'FontAwesome';
+        TagMark.innerHTML = '&#xf02b;';
+        TagMark.onclick = () => console.log('Tag deco clicked');
+        container.appendChild(TagMark);
+      }
+
+      // --- Comment ---
+      if (decoFlags.isComment) {
+        const CommentMark = document.createElement('span');
+        CommentMark.style.fontFamily = 'FontAwesome';
+        CommentMark.innerHTML = '&#xf075;';
+        CommentMark.onclick = () => console.log('Comment deco clicked');
+        container.appendChild(CommentMark);
+      }
+
+      decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
+    }
   });
   return DecorationSet.create(state.doc, decorations);
 }
@@ -441,6 +444,8 @@ export function openFloatingMenu(
         pasteHandler: () => pasteFromClipboard(view, plugin),
         pasteAsReferenceHandler: () => pasteAsReference(view, plugin),
         pastePlainHandler: () => pasteAsPlainText(view, plugin),
+        createInfoIconHandler: () => createInfoIconHandler(view),
+        createCitationHandler: () => createCitationHandler(view),
       },
       {
         anchor: anchorEl || view.dom,
@@ -502,7 +507,7 @@ export function createNewSlice(view: EditorView): void {
   const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
   if (!plugin) return;
 
-  view['runtime'].createSlice(sliceModel)
+  plugin.sliceManager.createSliceViaDialog(sliceModel)
     .then((val) => {
       plugin.sliceManager.addSliceToList(val);
       changeAttribute(view);
@@ -510,4 +515,33 @@ export function createNewSlice(view: EditorView): void {
     .catch((err) => {
       console.error('createSlice failed with:', err);
     });
+}
+
+export async function showReferences(view: EditorView): Promise<void> {
+  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
+  if (!plugin) return;
+  plugin.sliceManager.insertReference()
+    .then((val) => {
+      insertReference(
+        view,
+        val.id,
+        val.source,
+        view['docView']?.node?.attrs?.objectMetaData?.name
+      );
+    })
+    .catch((err) => {
+      console.error('createSlice failed with:', err);
+    });
+}
+
+export function createInfoIconHandler(view: EditorView): void {
+  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
+  if (!plugin) return;
+  plugin.sliceManager?.addInfoIcon();
+}
+
+export function createCitationHandler(view: EditorView): void {
+  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
+  if (!plugin) return;
+  plugin.sliceManager?.addCitation();
 }
