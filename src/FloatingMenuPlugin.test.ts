@@ -20,7 +20,7 @@ import {
   openFloatingMenu,
   addAltRightClickHandler,
 } from './FloatingMenuPlugin';
-import {insertReference} from '@mo/licit-referencing';
+import {insertReference} from '@modusoperandi/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
 import {FloatingMenu} from './FloatingPopup';
 import {FloatRuntime, SliceModel} from './model';
@@ -29,7 +29,7 @@ jest.mock('@modusoperandi/licit-ui-commands', () => ({
   createPopUp: jest.fn(() => ({close: jest.fn()})),
   atAnchorBottomLeft: jest.fn(),
 }));
-jest.mock('@mo/licit-referencing', () => ({
+jest.mock('@modusoperandi/licit-referencing', () => ({
   insertReference: jest.fn(),
 }));
 

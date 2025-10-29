@@ -53,7 +53,7 @@ jest.mock('./FloatingMenuPlugin', () => {
 });
 
 // Mock insertReference (used in pasteAsReference)
-jest.mock('@mo/licit-referencing', () => ({
+jest.mock('@modusoperandi/licit-referencing', () => ({
   insertReference: jest.fn(),
 }));
 

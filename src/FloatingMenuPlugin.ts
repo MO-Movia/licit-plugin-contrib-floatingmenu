@@ -1,17 +1,17 @@
 // A generic Floating Menu ProseMirror Plugin
-import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
-import { Node, Schema, Slice } from 'prosemirror-model';
-import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
+import {Decoration, DecorationSet, EditorView} from 'prosemirror-view';
+import {Node, Schema, Slice} from 'prosemirror-model';
+import {Plugin, PluginKey, EditorState, Transaction} from 'prosemirror-state';
 import {
   createPopUp,
   PopUpHandle,
   atAnchorBottomLeft,
 } from '@modusoperandi/licit-ui-commands';
-import { FloatingMenu } from './FloatingPopup';
-import { v4 as uuidv4 } from 'uuid';
-import { insertReference } from '@mo/licit-referencing';
-import { createSliceManager } from './slice';
-import { FloatRuntime } from './model';
+import {FloatingMenu} from './FloatingPopup';
+import {v4 as uuidv4} from 'uuid';
+import {insertReference} from '@modusoperandi/licit-referencing';
+import {createSliceManager} from './slice';
+import {FloatRuntime} from './model';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 interface SliceModel {
@@ -43,7 +43,7 @@ export class FloatingMenuPlugin extends Plugin {
           let decos = prev.decorations;
 
           if (!tr.docChanged) {
-            return { decorations: decos?.map(tr.mapping, tr.doc) };
+            return {decorations: decos?.map(tr.mapping, tr.doc)};
           }
 
           decos = decos.map(tr.mapping, tr.doc);
@@ -56,14 +56,13 @@ export class FloatingMenuPlugin extends Plugin {
                 s.stepType === 'replaceAround' ||
                 s.stepType === 'setNodeMarkup'
               );
-            }) ||
-            tr.getMeta(CMPluginKey)?.forceRescan;
+            }) || tr.getMeta(CMPluginKey)?.forceRescan;
 
           if (requiresRescan) {
             decos = getDecorations(tr.doc, newState);
           }
 
-          return { decorations: decos };
+          return {decorations: decos};
         },
       },
       props: {
@@ -78,13 +77,17 @@ export class FloatingMenuPlugin extends Plugin {
         getDocSlices.call(plugin, view);
 
         view.dom.addEventListener('pointerdown', (e) => {
-          const targetEl = (e.target as HTMLElement).closest('.float-icon') as HTMLElement;
+          const targetEl = (e.target as HTMLElement).closest(
+            '.float-icon'
+          ) as HTMLElement;
           if (!targetEl) return;
 
           e.preventDefault();
           e.stopPropagation();
 
-          const wrapper = targetEl.closest('.pm-hamburger-wrapper') as HTMLElement;
+          const wrapper = targetEl.closest(
+            '.pm-hamburger-wrapper'
+          ) as HTMLElement;
           wrapper?.classList.add('popup-open');
 
           const pos = Number(targetEl.dataset.pos);
@@ -121,7 +124,6 @@ export class FloatingMenuPlugin extends Plugin {
         document.addEventListener('click', outsideClickHandler);
         return {};
       },
-
     });
   }
 
@@ -130,8 +132,11 @@ export class FloatingMenuPlugin extends Plugin {
   }
 }
 
-export function copySelectionRich(view: EditorView, plugin: FloatingMenuPlugin) {
-  const { state } = view;
+export function copySelectionRich(
+  view: EditorView,
+  plugin: FloatingMenuPlugin
+) {
+  const {state} = view;
   if (state.selection.empty) return;
 
   if (!view.hasFocus()) view.focus();
@@ -142,12 +147,13 @@ export function copySelectionRich(view: EditorView, plugin: FloatingMenuPlugin) 
     content: slice.content.toJSON(),
     openStart: slice.openStart,
     openEnd: slice.openEnd,
-    sliceModel: createSliceObject(view)
+    sliceModel: createSliceObject(view),
   };
 
-  navigator.clipboard.writeText(JSON.stringify(sliceJSON))
+  navigator.clipboard
+    .writeText(JSON.stringify(sliceJSON))
     .then(() => console.log('Rich content copied'))
-    .catch(err => console.error('Clipboard write failed', err));
+    .catch((err) => console.error('Clipboard write failed', err));
   if (plugin._popUpHandle) {
     plugin._popUpHandle.update({
       ...plugin._popUpHandle['props'],
@@ -213,18 +219,21 @@ export function createSliceObject(editorView: EditorView): SliceModel {
   return sliceModel;
 }
 
-
-export function copySelectionPlain(view: EditorView, plugin: FloatingMenuPlugin) {
+export function copySelectionPlain(
+  view: EditorView,
+  plugin: FloatingMenuPlugin
+) {
   if (!view.hasFocus()) {
     view.focus();
   }
-  const { from, to } = view.state.selection;
+  const {from, to} = view.state.selection;
   if (from === to) return;
 
   const slice = view.state.doc.slice(from, to);
   const text = slice.content.textBetween(0, slice.content.size, '\n');
 
-  navigator.clipboard.writeText(text)
+  navigator.clipboard
+    .writeText(text)
     .then(() => console.log('Plain text copied!'))
     .catch((err) => console.error('Clipboard write failed:', err));
   if (plugin._popUpHandle?.close) {
@@ -233,7 +242,10 @@ export function copySelectionPlain(view: EditorView, plugin: FloatingMenuPlugin)
   }
 }
 
-export async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuPlugin) {
+export async function pasteFromClipboard(
+  view: EditorView,
+  plugin: FloatingMenuPlugin
+) {
   try {
     if (!view.hasFocus()) view.focus();
 
@@ -247,7 +259,11 @@ export async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuP
       tr = view.state.tr.replaceSelection(slice);
     } catch (jsonErr) {
       // If not JSON, treat as plain text
-      tr = view.state.tr.insertText(text, view.state.selection.from, view.state.selection.to);
+      tr = view.state.tr.insertText(
+        text,
+        view.state.selection.from,
+        view.state.selection.to
+      );
     }
 
     view.dispatch(tr.scrollIntoView());
@@ -261,7 +277,10 @@ export async function pasteFromClipboard(view: EditorView, plugin: FloatingMenuP
   }
 }
 
-export async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlugin) {
+export async function pasteAsReference(
+  view: EditorView,
+  plugin: FloatingMenuPlugin
+) {
   try {
     if (!view.hasFocus()) view.focus();
     const text = await navigator.clipboard.readText();
@@ -269,13 +288,17 @@ export async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlu
     const sliceModel: SliceModel = parsed.sliceModel;
 
     if (!plugin.sliceManager?.createSliceViaDialog) {
-      throw new Error('SliceManager or createSliceViaDialog is not initialized');
+      throw new Error(
+        'SliceManager or createSliceViaDialog is not initialized'
+      );
     }
 
     const val = await plugin.sliceManager.createSliceViaDialog(sliceModel);
 
     if (!val) {
-      console.warn('Slice creation returned no value, skipping insertReference.');
+      console.warn(
+        'Slice creation returned no value, skipping insertReference.'
+      );
       return;
     }
     insertReference(
@@ -286,7 +309,6 @@ export async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlu
     );
 
     console.log('Slice created successfully:', val);
-
   } catch (err) {
     console.error('Failed to paste content or create slice:', err);
   } finally {
@@ -297,7 +319,10 @@ export async function pasteAsReference(view: EditorView, plugin: FloatingMenuPlu
   }
 }
 
-export async function pasteAsPlainText(view: EditorView, plugin: FloatingMenuPlugin) {
+export async function pasteAsPlainText(
+  view: EditorView,
+  plugin: FloatingMenuPlugin
+) {
   try {
     if (!view.hasFocus()) view.focus();
 
@@ -318,8 +343,12 @@ export async function pasteAsPlainText(view: EditorView, plugin: FloatingMenuPlu
       // Not JSON → just keep as is
     }
 
-    const { state } = view;
-    const tr = state.tr.insertText(plainText, state.selection.from, state.selection.to);
+    const {state} = view;
+    const tr = state.tr.insertText(
+      plainText,
+      state.selection.from,
+      state.selection.to
+    );
     view.dispatch(tr.scrollIntoView());
   } catch (err) {
     console.error('Plain text paste failed:', err);
@@ -337,16 +366,16 @@ export async function clipboardHasProseMirrorData(): Promise<boolean> {
     if (!text) return false;
     const parsed = JSON.parse(text);
     return (
-      parsed &&
-      typeof parsed === 'object' &&
-      parsed.content &&
-      Array.isArray(parsed.content) || parsed.content.type
+      (parsed &&
+        typeof parsed === 'object' &&
+        parsed.content &&
+        Array.isArray(parsed.content)) ||
+      parsed.content.type
     );
   } catch {
     return false;
   }
 }
-
 
 // --- Decoration function ---
 export function getDecorations(doc: Node, state: EditorState): DecorationSet {
@@ -365,14 +394,10 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
 
     wrapper.appendChild(hamburger);
 
-    decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
+    decorations.push(Decoration.widget(pos + 1, wrapper, {side: 1}));
     const decoFlags = node.attrs?.isDeco;
     if (!decoFlags) return;
-    if (
-      decoFlags.isSlice ||
-      decoFlags.isTag ||
-      decoFlags.isComment
-    ) {
+    if (decoFlags.isSlice || decoFlags.isTag || decoFlags.isComment) {
       // --- Container for gutter marks ---
       const container = document.createElement('span');
       container.style.position = 'absolute';
@@ -411,7 +436,7 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         container.appendChild(CommentMark);
       }
 
-      decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
+      decorations.push(Decoration.widget(pos + 1, container, {side: -1}));
     }
   });
   return DecorationSet.create(state.doc, decorations);
@@ -422,7 +447,7 @@ export function openFloatingMenu(
   view: EditorView,
   pos: number,
   anchorEl?: HTMLElement,
-  contextPos?: { x: number; y: number }
+  contextPos?: {x: number; y: number}
 ) {
   // Close existing popup if any
   if (plugin._popUpHandle) {
@@ -455,20 +480,25 @@ export function openFloatingMenu(
         onClose: () => {
           plugin._popUpHandle = null;
           // Remove 'popup-open' class if anchor is a hamburger wrapper
-          anchorEl?.closest('.pm-hamburger-wrapper')?.classList.remove('popup-open');
+          anchorEl
+            ?.closest('.pm-hamburger-wrapper')
+            ?.classList.remove('popup-open');
         },
       }
     );
   });
 }
 
-export function addAltRightClickHandler(view: EditorView, plugin: FloatingMenuPlugin) {
+export function addAltRightClickHandler(
+  view: EditorView,
+  plugin: FloatingMenuPlugin
+) {
   view.dom.addEventListener('contextmenu', (e: MouseEvent) => {
     if (e.altKey && e.button === 2) {
       e.preventDefault();
       e.stopPropagation();
 
-      const pos = view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos;
+      const pos = view.posAtCoords({left: e.clientX, top: e.clientY})?.pos;
       if (pos == null) return;
 
       openFloatingMenu(plugin, view, pos);
@@ -487,27 +517,26 @@ export async function getDocSlices(this: FloatingMenuPlugin, view: EditorView) {
   }
 }
 
-
 export function changeAttribute(_view: EditorView): void {
   const from = _view.state.selection.$from.before(1);
   const node = _view.state.doc.nodeAt(from);
   if (!node) return; // early return if node does not exist
   let tr = _view.state.tr;
-  const newattrs = { ...node.attrs };
-  const isDeco = { ...(newattrs.isDeco || {}) };
+  const newattrs = {...node.attrs};
+  const isDeco = {...(newattrs.isDeco || {})};
   isDeco.isSlice = true;
   newattrs.isDeco = isDeco;
   tr = tr.setNodeMarkup(from, undefined, newattrs);
   _view.dispatch(tr);
 }
 
-
 export function createNewSlice(view: EditorView): void {
   const sliceModel = createSliceObject(view);
   const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
   if (!plugin) return;
 
-  plugin.sliceManager.createSliceViaDialog(sliceModel)
+  plugin.sliceManager
+    .createSliceViaDialog(sliceModel)
     .then((val) => {
       plugin.sliceManager.addSliceToList(val);
       changeAttribute(view);
@@ -520,7 +549,8 @@ export function createNewSlice(view: EditorView): void {
 export async function showReferences(view: EditorView): Promise<void> {
   const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
   if (!plugin) return;
-  plugin.sliceManager.insertReference()
+  plugin.sliceManager
+    .insertReference()
     .then((val) => {
       insertReference(
         view,
