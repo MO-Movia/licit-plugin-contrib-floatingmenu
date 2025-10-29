@@ -97,7 +97,7 @@ export class FloatingMenuPlugin extends Plugin {
             e.preventDefault();
             e.stopPropagation();
 
-            let pos = {
+            const pos = {
               x: e ? e.clientX : 0,
               y: e ? e.clientY : 0,
             };
@@ -463,7 +463,7 @@ export function openFloatingMenu(
 }
 
 export function addAltRightClickHandler(view: EditorView, plugin: FloatingMenuPlugin) {
-  view.dom.addEventListener("contextmenu", (e: MouseEvent) => {
+  view.dom.addEventListener('contextmenu', (e: MouseEvent) => {
     if (e.altKey && e.button === 2) {
       e.preventDefault();
       e.stopPropagation();

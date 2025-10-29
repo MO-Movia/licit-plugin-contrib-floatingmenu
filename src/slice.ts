@@ -58,10 +58,10 @@ export function createSliceManager(runtime: FloatRuntime) {
 
   function createSliceViaDialog(props: SliceModel): Promise<SliceModel> {
     return runtime?.createSlice(props);
-  };
+  }
   function insertReference(): Promise<SliceModel> {
     return runtime?.insertReference();
-  };
+  }
 
   return {
     setSlices,

@@ -15,23 +15,15 @@
     "pretty": false,
     "esModuleInterop": true,
     "skipLibCheck": true,
-    "types": [
-      "jest",
-      "jest-prosemirror"
-    ],
     // Ensure that .d.ts files are created by tsc, but not .js files
     "declaration": true,
-    // Ensure that Babel can safely transpile files in the TypeScript project
-    "isolatedModules": true
+    "incremental": true,
+    "tsBuildInfoFile": "./node_modules/build.tsbuildinfo"
   },
   "typeAcquisition": {
     "enable": true
   },
-  "include": [
-    "src/**/*.ts"
-  ],
   "exclude": [
-    "node_modules",
-    "**/*.test.ts"
+    "dist"
   ]
 }
