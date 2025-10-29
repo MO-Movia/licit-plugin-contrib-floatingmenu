@@ -22,8 +22,8 @@
       "verify": "npm run lint -- --fix && npm run ci:build && npm run test:coverage && echo 'All Tests Passed!'"
    },
    "peerDependencies": {
-      "@modusoperandi/licit-ui-commands": "^1.0.8",
-      "@mo/licit-referencing": "^2.0.4",
+      "@modusoperandi/licit-ui-commands": "^1.0.0",
+      "@modusoperandi/licit-referencing": "^1.0.0",
       "prosemirror-model": "^1.19.4",
       "prosemirror-state": "^1.4.2",
       "prosemirror-transform": "^1.7.0",
