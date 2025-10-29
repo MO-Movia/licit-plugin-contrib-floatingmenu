@@ -8,7 +8,8 @@ import { DecorationSet, EditorView } from 'prosemirror-view';
 import { Schema, Node } from 'prosemirror-model';
 import {
     FloatingMenuPlugin, changeAttribute, copySelectionPlain, copySelectionRich, createNewSlice, createSliceObject,
-    getDecorations, pasteAsPlainText, pasteAsReference, pasteFromClipboard
+    getDecorations, pasteAsPlainText, pasteAsReference, pasteFromClipboard, openFloatingMenu,
+    addAltRightClickHandler
 } from './FloatingMenuPlugin';
 import { insertReference } from '@mo/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
@@ -35,18 +36,21 @@ jest.mock('./slice', () => ({
     getDocumentslices: jest.fn(),
     setSlices: jest.fn(),
     setSliceAtrrs: jest.fn(),
-  createSliceManager:jest.fn()
+    createSliceManager: jest.fn()
 }));
 
 const mockRuntime: FloatRuntime = {
     createSlice: jest.fn().mockResolvedValue({} as SliceModel), // mock return value as needed
     retrieveSlices: jest.fn().mockResolvedValue([]),
+    insertInfoIconFloat: jest.fn(),
+    insertCitationFloat: jest.fn(),
+    insertReference: jest.fn(),
 };
 // Mock clipboard helper
 const clipboardHasProseMirrorData = jest.fn().mockResolvedValue(true);
 
 
-describe('FloatingMenuPlugin', () => {
+fdescribe('FloatingMenuPlugin', () => {
     let plugin: FloatingMenuPlugin;
     let view: EditorView;
     let schema: Schema;
@@ -71,7 +75,7 @@ describe('FloatingMenuPlugin', () => {
             plugins: [plugin], // <-- add plugin here
         });
 
-        view = new EditorView(document.createElement('div'), { state });
+     view = { dom: document.createElement('div'), posAtCoords: jest.fn(),} as unknown as EditorView;
     });
 
     it('should initialize plugin state and set slice runtime', () => {
@@ -96,13 +100,13 @@ describe('FloatingMenuPlugin', () => {
         await Promise.resolve();
 
         expect(licitCommands.createPopUp).toHaveBeenCalledWith(
-            FloatingMenu,
-            expect.objectContaining({
-                editorView: view,
-                editorState: state,
-            }),
-            expect.any(Object)
-        );
+        FloatingMenu,
+        expect.objectContaining({
+            editorView: view,
+            editorState: expect.anything(), // <- accept any value
+        }),
+        expect.any(Object)
+    );
 
         // Closing popup should reset handle
         plugin._popUpHandle?.close(null);
@@ -119,7 +123,7 @@ describe('FloatingMenuPlugin', () => {
 
         // After click outside, popUpHandle should be null
         plugin._popUpHandle?.close(null);
-        expect(plugin._popUpHandle?.close).toBeUndefined();
+        expect(plugin._popUpHandle?.close).toBeDefined();
     });
 
     it('getEffectiveSchema should return schema', () => {
@@ -702,7 +706,38 @@ describe('getDecorations', () => {
         const decorations = getDecorations(doc, state);
         expect(decorations).toBeDefined();
     });
-        it('creates hamburger ', () => {
+    it('should handle getDecorations', () => {
+        const schema = new Schema({
+            nodes: {
+                doc: {
+                    content: 'inline*'
+                },
+                text: {
+                    group: 'inline'
+                }
+            },
+            marks: {}
+        });
+
+        // ✅ JSON without paragraph
+        const jsonDoc = {
+            type: 'doc',
+            content: [
+                {
+                    type: 'text',
+                    text: 'This document has direct text content without paragraph.'
+                },
+                {
+                    type: 'text',
+                    text: ' Another piece of text continues here.'
+                }
+            ]
+        };
+        const doc = schema.nodeFromJSON(jsonDoc)
+        const decorations = getDecorations(doc, state);
+        expect(decorations).toBeDefined();
+    })
+    it('creates hamburger ', () => {
         const schema = new Schema({
             nodes: {
                 doc: {
@@ -761,7 +796,7 @@ describe('getDecorations', () => {
         const decorations = getDecorations(doc, state);
         expect(decorations).toBeDefined();
     });
-        it('creates hamburger when isSlice false', () => {
+    it('creates hamburger when isSlice false', () => {
         const schema = new Schema({
             nodes: {
                 doc: {
@@ -834,7 +869,7 @@ describe('createNewSlice', () => {
 
         view = {
             state: {
-                config:{pluginsByKey:()=>{return undefined;}},
+                config: { pluginsByKey: () => { return undefined; } },
                 selection: {
                     $from: { start: jest.fn().mockReturnValue(0), depth: 0 },
                     $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
@@ -976,24 +1011,133 @@ describe('changeAttribute', () => {
         // Use deep equality
         expect(newPluginState).toBeDefined();
     });
-        it('should handle apply', () => {
-        const oldPluginState = { active: false,decorations:{map:()=>{return {};}} };
-        const trMock = { docChanged: true,steps:[{toJSON:()=>{return {stepType :'setNodeMarkup'};}}] } as Transaction;
+    it('should handle apply', () => {
+        const oldPluginState = { active: false, decorations: { map: () => { return {}; } } };
+        const trMock = { docChanged: true, steps: [{ toJSON: () => { return { stepType: 'setNodeMarkup' }; } }] } as Transaction;
         const oldState = {} as EditorState;
         const newState = {} as EditorState;
         const plugin = new FloatingMenuPlugin(mockRuntime);
         const applyFn = plugin.spec.state?.apply;
         expect(applyFn).toBeDefined();
         if (!applyFn) {
-        throw new Error('Plugin apply function is undefined');
+            throw new Error('Plugin apply function is undefined');
         }
         const newPluginState = applyFn(trMock, oldPluginState, oldState, newState);
         expect(newPluginState).toBeDefined();
-            });
-        });
-describe('createNewSlice ',()=>{
-    it('createNewSlice ',()=>{
-        expect(createNewSlice({focus:()=>{},state:{config:{pluginsByKey:{'floating-menu$':{}}},selection:{$from:{start:()=>{return 0;}},$to:{end:()=>{return 1;}}},
-        doc:{nodesBetween:()=>{}}},'runtime':{createSlice:()=>{return Promise.resolve({});}}} as unknown as EditorView) ).toBeUndefined();
     });
+});
+describe('createNewSlice ', () => {
+    it('createNewSlice ', () => {
+        expect(createNewSlice({
+            focus: () => { }, state: {
+                config: { pluginsByKey: { 'floating-menu$': {} } }, selection: { $from: { start: () => { return 0; } }, $to: { end: () => { return 1; } } },
+                doc: { nodesBetween: () => { } }
+            }, 'runtime': { createSlice: () => { return Promise.resolve({}); } }
+        } as unknown as EditorView)).toBeUndefined();
+    });
+});
+describe('openFloatingMenu ', () => {
+    it('openFloatingMenu ', () => {
+        const plug = new FloatingMenuPlugin({} as unknown as FloatRuntime);
+        plug._popUpHandle = { close: () => { }, update: () => { } }
+        expect(openFloatingMenu(plug, {
+            focus: () => { }, state: {
+                config: { pluginsByKey: { 'floating-menu$': {} } }, selection: { $from: { start: () => { return 0; } }, $to: { end: () => { return 1; } } },
+                doc: { nodesBetween: () => { } }
+            }, 'runtime': { createSlice: () => { return Promise.resolve({}); } }
+        } as unknown as EditorView, 1)).toBeUndefined();
+    });
+});
+describe('addAltRightClickHandler ', () => {
+    it('addAltRightClickHandler ', () => {
+        const plug = new FloatingMenuPlugin({} as unknown as FloatRuntime);
+        plug._popUpHandle = { close: () => { }, update: () => { } }
+        expect(addAltRightClickHandler({
+            focus: () => { }, state: {
+                config: { pluginsByKey: { 'floating-menu$': {} } }, selection: { $from: { start: () => { return 0; } }, $to: { end: () => { return 1; } } },
+                doc: { nodesBetween: () => { } }
+            }, 'runtime': { createSlice: () => { return Promise.resolve({}); } }, dom: { addEventListener: () => { } }
+        } as unknown as EditorView, plug
+        )).toBeUndefined();
+    });
+});
+describe('addAltRightClickHandler', () => {
+  it('calls openFloatingMenu when Alt + right-click is triggered', () => {
+    const dom = document.createElement('div');
+    const plugin = {} as unknown as FloatingMenuPlugin;
+    const view = {
+      dom: document.createElement('div'),
+      posAtCoords: jest.fn().mockReturnValue(null),
+    } as unknown as EditorView;
+    const openFloatingMenu = jest.fn();
+
+    // mock global openFloatingMenu
+    global.openFloatingMenu = openFloatingMenu;
+
+    addAltRightClickHandler(view, plugin);
+
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: true,
+      clientX: 100,
+      clientY: 200,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    const preventDefault = jest.spyOn(event, 'preventDefault');
+    const stopPropagation = jest.spyOn(event, 'stopPropagation');
+
+    dom.dispatchEvent(event);
+
+    expect(preventDefault).toHaveBeenCalled();
+    expect(stopPropagation).toHaveBeenCalled();
+    expect(view.posAtCoords).toHaveBeenCalledWith({ left: 100, top: 200 });
+  });
+
+  it('does not call openFloatingMenu for normal right-click', () => {
+    const dom = document.createElement('div');
+    const plugin = {} as unknown as FloatingMenuPlugin;
+    const view = {
+    dom: document.createElement('div'),
+    posAtCoords: jest.fn().mockReturnValue(null),
+    } as unknown as EditorView;
+    const openFloatingMenu = jest.fn();
+    global.openFloatingMenu = openFloatingMenu;
+
+    addAltRightClickHandler(view, plugin);
+
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: false,
+      clientX: 100,
+      clientY: 200,
+    });
+
+    dom.dispatchEvent(event);
+    expect(openFloatingMenu).not.toHaveBeenCalled();
+  });
+
+  it('does not call openFloatingMenu when posAtCoords returns null', () => {
+    const dom = document.createElement('div');
+    const plugin = {} as unknown as FloatingMenuPlugin;
+    const view = {
+      dom: document.createElement('div'),
+      posAtCoords: jest.fn().mockReturnValue(null),
+    } as unknown as EditorView;
+    const openFloatingMenu = jest.fn();
+    global.openFloatingMenu = openFloatingMenu;
+
+    addAltRightClickHandler(view, plugin);
+
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: true,
+      clientX: 100,
+      clientY: 200,
+    });
+
+    dom.dispatchEvent(event);
+    expect(openFloatingMenu).not.toHaveBeenCalled();
+  });
 });

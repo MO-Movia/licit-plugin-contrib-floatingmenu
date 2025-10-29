@@ -46,7 +46,22 @@ export function createSliceManager(runtime: FloatRuntime) {
     });
 
     view.dispatch(tr);
-  }
+   }
+
+    function addInfoIcon(): void {
+     return runtime?.insertInfoIconFloat();
+   }
+
+    function addCitation(): void {
+     return runtime?.insertCitationFloat();
+   }
+
+  function createSliceViaDialog(props: SliceModel): Promise<SliceModel> {
+    return runtime?.createSlice(props);
+  };
+  function insertReference(): Promise<SliceModel> {
+    return runtime?.insertReference();
+  };
 
   return {
     setSlices,
@@ -54,5 +69,9 @@ export function createSliceManager(runtime: FloatRuntime) {
     getDocumentSlices,
     addSliceToList,
     setSliceAttrs,
+    addInfoIcon,
+    addCitation,
+    createSliceViaDialog,
+    insertReference
   };
 }

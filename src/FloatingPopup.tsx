@@ -1,6 +1,6 @@
 import React from 'react';
 import { CustomButton } from '@modusoperandi/licit-ui-commands';
-import { createNewSlice } from './FloatingMenuPlugin';
+import { createNewSlice,showReferences } from './FloatingMenuPlugin';
 import { EditorView } from 'prosemirror-view';
 import {EditorState} from 'prosemirror-state';
 
@@ -11,6 +11,8 @@ interface FloatingMenuProps {
   pasteAsReferenceEnabled: boolean;
   copyRichHandler: () => void;
   copyPlainHandler: () => void;
+  createCitationHandler: () => void;
+  createInfoIconHandler: () => void;
   pasteHandler: () => void;
   pasteAsReferenceHandler: () => void;
   pastePlainHandler: () => void;
@@ -47,16 +49,12 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
                       <CustomButton
               disabled={!enableCitationAndComment}
               label="Create Citation"
-              onClick={() => {
-              this.onCreateCitation();
-              }}
+              onClick={this.props.createCitationHandler}
             />
                     <CustomButton
             disabled={!enableTagAndInfoicon}
             label="Create Infoicon"
-            onClick={() => {
-            this.onCreateInfoIcon();
-            }}
+            onClick={this.props.createInfoIconHandler}
           />
 
           <CustomButton label="Copy" onClick={this.props.copyRichHandler} />
@@ -77,23 +75,13 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
 
           <CustomButton label="Create Bookmark" onClick={() => { createNewSlice(this.props.editorView); this.props.close?.('Create Slice'); }}
           />
+            <CustomButton label="Insert Reference" onClick={() => { showReferences(this.props.editorView); this.props.close?.('Insert reference'); }}
+          />
         </div>
       </div>
     );
 
   }
-
-    private onCreateCitation = (): void => {
-    const {editorView } = this.props;
-    editorView['runtime'].insertCitation();
-    this.props.close?.('Create Citation');
-};
-
-  private onCreateInfoIcon = (): void => {
-  const { editorView } = this.props;
-  editorView['runtime'].insertInfoIcon();
-    this.props.close?.('Create Infoicon');
-};
 
   closePopup(menuName: string): void {
     this.props.close?.(menuName);
