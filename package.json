@@ -3,10 +3,10 @@
    "version": "0.1.0",
    "type": "module",
    "description": "licit-floatingmenu plugin built with ProseMirror",
-   "main": "dist/index.js",
-   "types": "dist/index.d.ts",
+   "main": "index.js",
+   "types": "index.d.ts",
    "style": "styles.css",
-   "license": "UNLICENSED",
+   "license": "MIT",
    "repository": {
       "type": "git",
       "url": "https://github.com/MO-Movia/licit-plugin-contrib-floatingmenu"
