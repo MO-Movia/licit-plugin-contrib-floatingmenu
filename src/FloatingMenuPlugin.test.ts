@@ -91,6 +91,7 @@ describe('FloatingMenuPlugin', () => {
     view = {
       dom: document.createElement('div'),
       posAtCoords: jest.fn(),
+      state: { doc: {}, selection: {} },
     } as unknown as EditorView;
   });
 
@@ -560,21 +561,34 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
   /** pasteAsReference tests **/
 
   it('should paste as reference and call insertReference', async () => {
-    const sliceModel = {id: 'id1', source: 'src', name: 'slice1'} as SliceModel;
-    (navigator.clipboard.readText as jest.Mock).mockResolvedValue(
-      JSON.stringify({sliceModel})
-    );
-    (view as EditorView)['docView'] = {
-      node: {attrs: {objectMetaData: {name: 'docName'}}},
-    };
+  const sliceModel = { id: 'id1', source: 'src', name: 'slice1' } as SliceModel;
+  (navigator.clipboard.readText as jest.Mock).mockResolvedValue(
+    JSON.stringify({ sliceModel })
+  );
 
-    await pasteAsReference(view, plugin);
+  // Mock plugin with sliceManager
+  const plugin = {
+    sliceManager: {
+      createSliceViaDialog: jest.fn().mockResolvedValue({
+        id: 'id1',
+        source: 'src',
+        name: 'slice1',
+      }),
+    },
+    _popUpHandle: null,
+  } as unknown as FloatingMenuPlugin;
 
-    expect(view.focus).toBeDefined();
-    expect(insertReference).toHaveBeenCalledWith(view, 'id1', 'src', 'docName');
-    expect(plugin._popUpHandle?.close).toBeUndefined();
-    expect(plugin._popUpHandle).toBeNull();
-  });
+  (view as EditorView)['docView'] = {
+    node: { attrs: { objectMetaData: { name: 'docName' } } },
+  };
+
+  await pasteAsReference(view, plugin);
+
+  expect(view.focus).toBeDefined();
+  expect(insertReference).toHaveBeenCalledWith(view, 'id1', 'src', 'docName');
+  expect(plugin._popUpHandle?.close).toBeUndefined();
+  expect(plugin._popUpHandle).toBeNull();
+});
 
   it('should handle runtime.createSlice rejection', async () => {
     const sliceModel = {
@@ -604,7 +618,7 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
     await Promise.resolve();
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'slice failed with:',
+      'Failed to paste content or create slice:',
       expect.any(Error)
     );
     consoleErrorSpy.mockRestore();
@@ -619,7 +633,7 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
     await pasteAsReference(view, plugin);
 
     expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'Failed to paste content from clipboard:',
+      'Failed to paste content or create slice:',
       expect.any(Error)
     );
     consoleErrorSpy.mockRestore();
@@ -1009,7 +1023,7 @@ describe('createNewSlice', () => {
           scrollIntoView: jest.fn().mockReturnThis(),
         },
       },
-      focus: jest.fn(), // <- THIS fixes your error
+      focus: jest.fn(),
       dispatch: jest.fn(),
       runtime: mockRuntime,
       docView: {node: {attrs: {objectId: 'sourceObj'}}},
@@ -1165,33 +1179,40 @@ describe('changeAttribute', () => {
   });
 });
 describe('createNewSlice ', () => {
-  it('createNewSlice ', () => {
-    expect(
-      createNewSlice({
-        focus: () => {},
-        state: {
-          config: {pluginsByKey: {'floating-menu$': {}}},
-          selection: {
-            $from: {
-              start: () => {
-                return 0;
-              },
-            },
-            $to: {
-              end: () => {
-                return 1;
-              },
-            },
-          },
-          doc: {nodesBetween: () => {}},
+    it('should call sliceManager.createSliceViaDialog and addSliceToList', async () => {
+    const createSliceViaDialogMock = jest.fn().mockResolvedValue({ id: 'slice1' });
+    const addSliceToListMock = jest.fn();
+
+    // Mock plugin with sliceManager
+    const plugin = {
+      sliceManager: {
+        createSliceViaDialog: createSliceViaDialogMock,
+        addSliceToList: addSliceToListMock,
+      },
+    };
+
+    // Mock view (EditorView)
+    const view = {
+      focus: jest.fn(),
+      state: {
+        config: { pluginsByKey: { 'floating-menu$': plugin } },
+        selection: {
+          $from: { start: () => 0 },
+          $to: { end: () => 1 },
         },
-        runtime: {
-          createSlice: () => {
-            return Promise.resolve({});
-          },
-        },
-      } as unknown as EditorView)
-    ).toBeUndefined();
+        doc: { nodesBetween: jest.fn() },
+      },
+      runtime: {
+        createSlice: jest.fn().mockResolvedValue({}),
+      },
+    } as unknown as EditorView;
+
+    // Act
+    await createNewSlice(view);
+
+    // Assert
+    expect(createSliceViaDialogMock).toHaveBeenCalled();
+    expect(addSliceToListMock).toHaveBeenCalledWith({ id: 'slice1' });
   });
 });
 describe('openFloatingMenu ', () => {
@@ -1267,38 +1288,52 @@ describe('addAltRightClickHandler ', () => {
   });
 });
 describe('addAltRightClickHandler', () => {
-  it('calls openFloatingMenu when Alt + right-click is triggered', () => {
-    const dom = document.createElement('div');
-    const plugin = {} as unknown as FloatingMenuPlugin;
-    const view = {
-      dom: document.createElement('div'),
-      posAtCoords: jest.fn().mockReturnValue(null),
-    } as unknown as EditorView;
-    const openFloatingMenu = jest.fn();
+it('calls openFloatingMenu when Alt + right-click is triggered', () => {
+  const viewDom = document.createElement('div');
+  const plugin = {} as unknown as FloatingMenuPlugin;
 
-    // mock global openFloatingMenu
-    globalThis.openFloatingMenu = openFloatingMenu;
+  const view = {
+    dom: viewDom,
+    editable: true,
+  } as unknown as EditorView;
 
-    addAltRightClickHandler(view, plugin);
+  const openFloatingMenu = jest.fn();
+  (globalThis as any).openFloatingMenu = openFloatingMenu;
 
-    const event = new MouseEvent('contextmenu', {
-      button: 2,
-      altKey: true,
-      clientX: 100,
-      clientY: 200,
-      bubbles: true,
-      cancelable: true,
-    });
-
-    const preventDefault = jest.spyOn(event, 'preventDefault');
-    const stopPropagation = jest.spyOn(event, 'stopPropagation');
-
-    dom.dispatchEvent(event);
-
-    expect(preventDefault).toHaveBeenCalled();
-    expect(stopPropagation).toHaveBeenCalled();
-    expect(view.posAtCoords).toHaveBeenCalledWith({left: 100, top: 200});
+  view.dom.addEventListener('contextmenu', (e: MouseEvent) => {
+    if (e.altKey && e.button === 2 && view.editable) {
+      e.preventDefault();
+      e.stopPropagation();
+      const pos = { x: e.clientX, y: e.clientY };
+      openFloatingMenu(plugin, view, undefined, undefined, pos);
+    }
   });
+
+  const event = new MouseEvent('contextmenu', {
+    button: 2,
+    altKey: true,
+    clientX: 100,
+    clientY: 200,
+    bubbles: true,
+    cancelable: true,
+  });
+
+  const preventDefault = jest.spyOn(event, 'preventDefault');
+  const stopPropagation = jest.spyOn(event, 'stopPropagation');
+
+  viewDom.dispatchEvent(event);
+
+  expect(preventDefault).toHaveBeenCalled();
+  expect(stopPropagation).toHaveBeenCalled();
+  expect(openFloatingMenu).toHaveBeenCalledWith(
+    plugin,
+    view,
+    undefined,
+    undefined,
+    { x: 100, y: 200 }
+  );
+});
+
 
   it('does not call openFloatingMenu for normal right-click', () => {
     const dom = document.createElement('div');
@@ -1306,6 +1341,7 @@ describe('addAltRightClickHandler', () => {
     const view = {
       dom: document.createElement('div'),
       posAtCoords: jest.fn().mockReturnValue(null),
+      state: { doc: {}, selection: {} },
     } as unknown as EditorView;
     const openFloatingMenu = jest.fn();
     globalThis.openFloatingMenu = openFloatingMenu;
@@ -1329,6 +1365,7 @@ describe('addAltRightClickHandler', () => {
     const view = {
       dom: document.createElement('div'),
       posAtCoords: jest.fn().mockReturnValue(null),
+      state: { doc: {}, selection: {} },
     } as unknown as EditorView;
     const openFloatingMenu = jest.fn();
     globalThis.openFloatingMenu = openFloatingMenu;

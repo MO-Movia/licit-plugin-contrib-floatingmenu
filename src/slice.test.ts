@@ -10,7 +10,6 @@ describe('createSliceManager', () => {
 
 beforeEach(() => {
   runtimeMock = {
-    // properly mock createSlice returning a full SliceModel
     createSlice: jest.fn().mockResolvedValue({
       id: '999',
       source: 'mock',
@@ -22,7 +21,6 @@ beforeEach(() => {
       ids: ['mock-id'],
     } as SliceModel),
 
-    // properly mock retrieveSlices returning an array of full SliceModels
     retrieveSlices: jest.fn().mockResolvedValue([
       {
         id: '1',
@@ -35,10 +33,15 @@ beforeEach(() => {
         ids: ['node-1'],
       } as SliceModel,
     ]),
-  };
+
+    insertInfoIconFloat: jest.fn(),
+    insertCitationFloat: jest.fn(),
+    insertReference: jest.fn(),
+  } as unknown as jest.Mocked<FloatRuntime>;
 
   manager = createSliceManager(runtimeMock);
 });
+
 
   it('should initialize with empty slice list', () => {
     expect(manager.getDocSlices()).toEqual([]);
