@@ -8,39 +8,39 @@ describe('createSliceManager', () => {
   let runtimeMock: jest.Mocked<FloatRuntime>;
   let manager: ReturnType<typeof createSliceManager>;
 
-beforeEach(() => {
-  runtimeMock = {
-    createSlice: jest.fn().mockResolvedValue({
-      id: '999',
-      source: 'mock',
-      from: 'mock-from',
-      to: 'mock-to',
-      name: 'Mock Slice',
-      description: 'A mock slice for testing',
-      referenceType: 'mock',
-      ids: ['mock-id'],
-    } as SliceModel),
-
-    retrieveSlices: jest.fn().mockResolvedValue([
-      {
-        id: '1',
-        source: 'doc-1',
-        from: 'node-1',
-        to: 'node-1-end',
-        name: 'Test Slice',
-        description: 'Mock slice for testing',
+  beforeEach(() => {
+    runtimeMock = {
+      createSlice: jest.fn().mockResolvedValue({
+        id: '999',
+        source: 'mock',
+        from: 'mock-from',
+        to: 'mock-to',
+        name: 'Mock Slice',
+        description: 'A mock slice for testing',
         referenceType: 'mock',
-        ids: ['node-1'],
-      } as SliceModel,
-    ]),
+        ids: ['mock-id'],
+      } as SliceModel),
 
-    insertInfoIconFloat: jest.fn(),
-    insertCitationFloat: jest.fn(),
-    insertReference: jest.fn(),
-  } as unknown as jest.Mocked<FloatRuntime>;
+      retrieveSlices: jest.fn().mockResolvedValue([
+        {
+          id: '1',
+          source: 'doc-1',
+          from: 'node-1',
+          to: 'node-1-end',
+          name: 'Test Slice',
+          description: 'Mock slice for testing',
+          referenceType: 'mock',
+          ids: ['node-1'],
+        } as SliceModel,
+      ]),
 
-  manager = createSliceManager(runtimeMock);
-});
+      insertInfoIconFloat: jest.fn(),
+      insertCitationFloat: jest.fn(),
+      insertReference: jest.fn(),
+    } as unknown as jest.Mocked<FloatRuntime>;
+
+    manager = createSliceManager(runtimeMock);
+  });
 
 
   it('should initialize with empty slice list', () => {
@@ -71,11 +71,30 @@ beforeEach(() => {
     expect(updated).toContainEqual(slice);
   });
 
-it('should retrieve document slices from runtime', async () => {
-  const mockView = {} as EditorView;
+  it('should retrieve document slices from runtime', async () => {
+    const mockView = {} as EditorView;
 
-  const expectedSlices: SliceModel[] = [
-    {
+    const expectedSlices: SliceModel[] = [
+      {
+        id: '1',
+        source: 'doc-1',
+        from: 'node-1',
+        to: 'node-1-end',
+        name: 'Test Slice',
+        description: 'Mock slice for testing',
+        referenceType: 'mock',
+        ids: ['node-1'],
+      },
+    ];
+
+    // Make sure the runtime mock returns the same full slice
+    runtimeMock.retrieveSlices.mockResolvedValue(expectedSlices);
+
+    const slices = await manager.getDocumentSlices(mockView);
+
+    await manager.addInfoIcon();
+    await manager.addCitation();
+    const slideModel = {
       id: '1',
       source: 'doc-1',
       from: 'node-1',
@@ -84,66 +103,63 @@ it('should retrieve document slices from runtime', async () => {
       description: 'Mock slice for testing',
       referenceType: 'mock',
       ids: ['node-1'],
-    },
-  ];
+    };
+    const slicesdlg = await manager.createSliceViaDialog(slideModel);
+    await manager.insertReference();
+    expect(slicesdlg.referenceType).toEqual(slideModel.referenceType);
 
-  // Make sure the runtime mock returns the same full slice
-  runtimeMock.retrieveSlices.mockResolvedValue(expectedSlices);
-
-  const slices = await manager.getDocumentSlices(mockView);
-
-  expect(runtimeMock.retrieveSlices).toHaveBeenCalled();
-  expect(slices).toEqual(expectedSlices);
-});
-
-  it('should set slice attrs on matching nodes', () => {
-  const mockDispatch = jest.fn();
-
-  const mockTr = {
-    setNodeMarkup: jest.fn().mockReturnThis(),
-  } as unknown as Transaction;
-
-  const mockNode = {
-    attrs: { objectId: 'node-1' },
-  } as unknown as Node;
-
-  const mockView = {
-    state: {
-      tr: mockTr,
-      doc: {
-        descendants: (callback: (node: Node, pos: number) => void) => {
-          callback(mockNode, 42);
-        },
-      },
-    },
-    dispatch: mockDispatch,
-  } as unknown as EditorView;
-
-  manager.addSliceToList({
-    id: '1',
-    source: 'doc-1',
-    from: 'node-1',
-    to: 'node-1-end',
-    name: 'Test Slice',
-    description: 'Mock slice',
-    referenceType: 'mock',
-    ids: ['node-1'],
+    expect(runtimeMock.retrieveSlices).toHaveBeenCalled();
+    expect(slices).toEqual(expectedSlices);
   });
 
-  // 👇 spy on the mockTr instance
-  const setNodeMarkupSpy = jest.spyOn(mockTr, 'setNodeMarkup');
+  it('should set slice attrs on matching nodes', () => {
+    const mockDispatch = jest.fn();
 
-  manager.setSliceAttrs(mockView);
+    const mockTr = {
+      setNodeMarkup: jest.fn().mockReturnThis(),
+    } as unknown as Transaction;
 
-  expect(setNodeMarkupSpy).toHaveBeenCalledWith(
-    42,
-    undefined,
-    expect.objectContaining({
-      isDeco: expect.objectContaining({ isSlice: true }),
-    }),
-  );
-  expect(mockDispatch).toHaveBeenCalledWith(mockTr);
+    const mockNode = {
+      attrs: { objectId: 'node-1' },
+    } as unknown as Node;
 
-  setNodeMarkupSpy.mockRestore();
-});
+    const mockView = {
+      state: {
+        tr: mockTr,
+        doc: {
+          descendants: (callback: (node: Node, pos: number) => void) => {
+            callback(mockNode, 42);
+          },
+        },
+      },
+      dispatch: mockDispatch,
+    } as unknown as EditorView;
+
+    manager.addSliceToList({
+      id: '1',
+      source: 'doc-1',
+      from: 'node-1',
+      to: 'node-1-end',
+      name: 'Test Slice',
+      description: 'Mock slice',
+      referenceType: 'mock',
+      ids: ['node-1'],
+    });
+
+    // 👇 spy on the mockTr instance
+    const setNodeMarkupSpy = jest.spyOn(mockTr, 'setNodeMarkup');
+
+    manager.setSliceAttrs(mockView);
+
+    expect(setNodeMarkupSpy).toHaveBeenCalledWith(
+      42,
+      undefined,
+      expect.objectContaining({
+        isDeco: expect.objectContaining({ isSlice: true }),
+      }),
+    );
+    expect(mockDispatch).toHaveBeenCalledWith(mockTr);
+
+    setNodeMarkupSpy.mockRestore();
+  });
 });

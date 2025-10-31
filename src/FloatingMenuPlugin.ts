@@ -1,17 +1,17 @@
 // A generic Floating Menu ProseMirror Plugin
-import {Decoration, DecorationSet, EditorView} from 'prosemirror-view';
-import {Node, Schema, Slice} from 'prosemirror-model';
-import {Plugin, PluginKey, EditorState, Transaction} from 'prosemirror-state';
+import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
+import { Node, Schema, Slice } from 'prosemirror-model';
+import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
 import {
   createPopUp,
   PopUpHandle,
   atAnchorBottomLeft,
 } from '@modusoperandi/licit-ui-commands';
-import {FloatingMenu} from './FloatingPopup';
-import {v4 as uuidv4} from 'uuid';
-import {insertReference} from '@modusoperandi/licit-referencing';
-import {createSliceManager} from './slice';
-import {FloatRuntime} from './model';
+import { FloatingMenu } from './FloatingPopup';
+import { v4 as uuidv4 } from 'uuid';
+import { insertReference } from '@modusoperandi/licit-referencing';
+import { createSliceManager } from './slice';
+import { FloatRuntime } from './model';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 interface SliceModel {
@@ -43,7 +43,7 @@ export class FloatingMenuPlugin extends Plugin {
           let decos = prev.decorations;
 
           if (!tr.docChanged) {
-            return {decorations: decos?.map(tr.mapping, tr.doc)};
+            return { decorations: decos?.map(tr.mapping, tr.doc) };
           }
 
           decos = decos.map(tr.mapping, tr.doc);
@@ -62,7 +62,7 @@ export class FloatingMenuPlugin extends Plugin {
             decos = getDecorations(tr.doc, newState);
           }
 
-          return {decorations: decos};
+          return { decorations: decos };
         },
       },
       props: {
@@ -136,7 +136,7 @@ export function copySelectionRich(
   view: EditorView,
   plugin: FloatingMenuPlugin
 ) {
-  const {state} = view;
+  const { state } = view;
   if (state.selection.empty) return;
 
   if (!view.hasFocus()) view.focus();
@@ -152,7 +152,7 @@ export function copySelectionRich(
 
   navigator.clipboard
     .writeText(JSON.stringify(sliceJSON))
-    .then(() => console.log('Rich content copied'))
+    .then(() => { }) //console.log('Rich content copied')
     .catch((err) => console.error('Clipboard write failed', err));
   if (plugin._popUpHandle) {
     plugin._popUpHandle.update({
@@ -226,7 +226,7 @@ export function copySelectionPlain(
   if (!view.hasFocus()) {
     view.focus();
   }
-  const {from, to} = view.state.selection;
+  const { from, to } = view.state.selection;
   if (from === to) return;
 
   const slice = view.state.doc.slice(from, to);
@@ -234,7 +234,7 @@ export function copySelectionPlain(
 
   navigator.clipboard
     .writeText(text)
-    .then(() => console.log('Plain text copied!'))
+    .then(() => { }) //console.log('Plain text copied!'))
     .catch((err) => console.error('Clipboard write failed:', err));
   if (plugin._popUpHandle?.close) {
     plugin._popUpHandle.close(null);
@@ -294,11 +294,7 @@ export async function pasteAsReference(
     }
 
     const val = await plugin.sliceManager.createSliceViaDialog(sliceModel);
-
     if (!val) {
-      console.warn(
-        'Slice creation returned no value, skipping insertReference.'
-      );
       return;
     }
     insertReference(
@@ -307,8 +303,6 @@ export async function pasteAsReference(
       val.source,
       view['docView']?.node?.attrs?.objectMetaData?.name
     );
-
-    console.log('Slice created successfully:', val);
   } catch (err) {
     console.error('Failed to paste content or create slice:', err);
   } finally {
@@ -343,7 +337,7 @@ export async function pasteAsPlainText(
       // Not JSON → just keep as is
     }
 
-    const {state} = view;
+    const { state } = view;
     const tr = state.tr.insertText(
       plainText,
       state.selection.from,
@@ -365,12 +359,11 @@ export async function clipboardHasProseMirrorData(): Promise<boolean> {
     const text = await navigator.clipboard.readText();
     if (!text) return false;
     const parsed = JSON.parse(text);
-    return (
-      (parsed &&
-        typeof parsed === 'object' &&
-        parsed.content &&
-        Array.isArray(parsed.content)) ||
-      parsed.content.type
+    return !!(
+      parsed &&
+      typeof parsed === 'object' &&
+      parsed.content &&
+      (Array.isArray(parsed.content) || parsed.content.type)
     );
   } catch {
     return false;
@@ -387,14 +380,13 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
     wrapper.className = 'pm-hamburger-wrapper';
 
     const hamburger = document.createElement('span');
-    // ✅ Use FontAwesome
     hamburger.className = 'float-icon fa fa-bars';
     hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
     hamburger.dataset.pos = String(pos);
 
     wrapper.appendChild(hamburger);
 
-    decorations.push(Decoration.widget(pos + 1, wrapper, {side: 1}));
+    decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
     const decoFlags = node.attrs?.isDeco;
     if (!decoFlags) return;
     if (decoFlags.isSlice || decoFlags.isTag || decoFlags.isComment) {
@@ -414,7 +406,8 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         SliceMark.id = `slicemark-${uuidv4()}`;
         SliceMark.style.fontFamily = 'FontAwesome';
         SliceMark.innerHTML = '&#xf097';
-        SliceMark.onclick = () => console.log('Slice deco clicked');
+        // SliceMark.onclick = () => console.log('Slice deco clicked');
+        SliceMark.onclick = () => { };
         container.appendChild(SliceMark);
       }
 
@@ -423,7 +416,7 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         const TagMark = document.createElement('span');
         TagMark.style.fontFamily = 'FontAwesome';
         TagMark.innerHTML = '&#xf02b;';
-        TagMark.onclick = () => console.log('Tag deco clicked');
+        TagMark.onclick = () => { }; //console.log('Tag deco clicked');
         container.appendChild(TagMark);
       }
 
@@ -432,11 +425,11 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         const CommentMark = document.createElement('span');
         CommentMark.style.fontFamily = 'FontAwesome';
         CommentMark.innerHTML = '&#xf075;';
-        CommentMark.onclick = () => console.log('Comment deco clicked');
+        CommentMark.onclick = () => { }; //console.log('Comment deco clicked');
         container.appendChild(CommentMark);
       }
 
-      decorations.push(Decoration.widget(pos + 1, container, {side: -1}));
+      decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
     }
   });
   return DecorationSet.create(state.doc, decorations);
@@ -447,7 +440,7 @@ export function openFloatingMenu(
   view: EditorView,
   pos: number,
   anchorEl?: HTMLElement,
-  contextPos?: {x: number; y: number}
+  contextPos?: { x: number; y: number }
 ) {
   // Close existing popup if any
   if (plugin._popUpHandle) {
@@ -498,7 +491,7 @@ export function addAltRightClickHandler(
       e.preventDefault();
       e.stopPropagation();
 
-      const pos = view.posAtCoords({left: e.clientX, top: e.clientY})?.pos;
+      const pos = view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos;
       if (pos == null) return;
 
       openFloatingMenu(plugin, view, pos);
@@ -522,8 +515,8 @@ export function changeAttribute(_view: EditorView): void {
   const node = _view.state.doc.nodeAt(from);
   if (!node) return; // early return if node does not exist
   let tr = _view.state.tr;
-  const newattrs = {...node.attrs};
-  const isDeco = {...(newattrs.isDeco || {})};
+  const newattrs = { ...node.attrs };
+  const isDeco = { ...(newattrs.isDeco || {}) };
   isDeco.isSlice = true;
   newattrs.isDeco = isDeco;
   tr = tr.setNodeMarkup(from, undefined, newattrs);

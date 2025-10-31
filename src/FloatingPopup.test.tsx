@@ -6,15 +6,15 @@
  *  - Unit tests for FloatingMenuPlugin helper functions (fixed assertions & mocks)
  */
 
-import {DecorationSet} from 'prosemirror-view';
+import { DecorationSet } from 'prosemirror-view';
 import React from 'react';
 import ReactDOM from 'react-dom';
-import {FloatingMenu} from './FloatingPopup';
+import { FloatingMenu } from './FloatingPopup';
 import * as Plugin from './FloatingMenuPlugin';
-import {Node as ProseMirrorNode} from 'prosemirror-model';
-import {schema as basicSchema} from 'prosemirror-schema-basic';
-import {FloatRuntime, SliceModel} from './model';
-import {PopUpHandle} from '@modusoperandi/licit-ui-commands';
+import { Node as ProseMirrorNode } from 'prosemirror-model';
+import { schema as basicSchema } from 'prosemirror-schema-basic';
+import { FloatRuntime, SliceModel } from './model';
+import { PopUpHandle } from '@modusoperandi/licit-ui-commands';
 
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
   createPopUp: jest.fn(),
@@ -24,7 +24,7 @@ jest.mock('@modusoperandi/licit-ui-commands', () => ({
 
 // Mock external UI command lib so component renders simple <button>
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
-  CustomButton: ({label, onClick, disabled}) => (
+  CustomButton: ({ label, onClick, disabled }) => (
     <button disabled={disabled} onClick={onClick}>
       {label}
     </button>
@@ -44,11 +44,13 @@ jest.mock('./slice', () => ({
 
 // Keep the real plugin module but override createNewSlice with a mock for UI tests
 const mockCreateNewSlice = jest.fn();
+const mockInsertReference = jest.fn();
 jest.mock('./FloatingMenuPlugin', () => {
   const actual = jest.requireActual('./FloatingMenuPlugin');
   return {
     ...actual,
     createNewSlice: (...args: SliceModel[]) => mockCreateNewSlice(...args),
+    showReferences: (...args: SliceModel[]) => mockInsertReference(...args),
   };
 });
 
@@ -93,8 +95,8 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         paragraphPos: 1,
         editorState: {
           selection: {
-            $from: {before: () => 1, depth: 1},
-            $to: {before: () => 1, depth: 1},
+            $from: { before: () => 1, depth: 1 },
+            $to: { before: () => 1, depth: 1 },
             empty: false,
           },
         },
@@ -133,7 +135,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
 
     function click(label: string) {
       const btn = getButton(label);
-      btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
 
     it('renders all buttons', () => {
@@ -167,6 +169,12 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       click('Create Bookmark');
       expect(mockCreateNewSlice).toHaveBeenCalledWith(props.editorView);
       expect(props.close).toHaveBeenCalledWith('Create Slice');
+    });
+
+    it('calls insertReference + close', () => {
+      click('Insert Reference');
+      expect(mockInsertReference).toHaveBeenCalledWith(props.editorView);
+      expect(props.close).toHaveBeenCalledWith('Insert reference');
     });
 
     it('calls copy/paste handlers (button wiring)', () => {
@@ -277,7 +285,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       docNode = basicSchema.node('doc', null, [
         basicSchema.node(
           'paragraph',
-          {objectId: 'a1', isDeco: {isSlice: true}},
+          { objectId: 'a1', isDeco: { isSlice: true } },
           [basicSchema.text('First paragraph')]
         ),
         basicSchema.node('paragraph', null, [
@@ -302,21 +310,21 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
           },
           doc: docNode,
           tr: {
-            insertText: jest.fn(() => ({scrollIntoView: () => ({})})),
-            replaceSelection: jest.fn(() => ({scrollIntoView: () => ({})})),
+            insertText: jest.fn(() => ({ scrollIntoView: () => ({}) })),
+            replaceSelection: jest.fn(() => ({ scrollIntoView: () => ({}) })),
           },
         },
         dispatch: jest.fn(),
         runtime: {
-          createSlice: jest.fn((m) => Promise.resolve({ok: true, model: m})),
+          createSlice: jest.fn((m) => Promise.resolve({ ok: true, model: m })),
         },
         hasFocus: jest.fn(() => true),
         docView: {
-          node: {attrs: {objectId: 'doc-x', objectMetaData: {name: 'MyDoc'}}},
+          node: { attrs: { objectId: 'doc-x', objectMetaData: { name: 'MyDoc' } } },
         },
       };
 
-      mockPopUpHandle = {close: jest.fn(), update: jest.fn()};
+      mockPopUpHandle = { close: jest.fn(), update: jest.fn() };
       pluginInstance = new Plugin.FloatingMenuPlugin({} as FloatRuntime);
       pluginInstance._popUpHandle = mockPopUpHandle;
       pluginInstance._view = mockView;
@@ -367,10 +375,10 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     });
 
     it('pasteAsReference: reads sliceModel and calls runtime.createSlice + insertReference', async () => {
-      const sliceModel = {id: 'slice-1', source: 'doc-x'};
+      const sliceModel = { id: 'slice-1', source: 'doc-x' };
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({sliceModel}));
+        .mockResolvedValue(JSON.stringify({ sliceModel }));
 
       await Plugin.pasteAsReference(mockView, pluginInstance);
 
@@ -380,7 +388,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('pasteAsPlainText: when clipboard contains JSON with non-slice data falls back and dispatches', async () => {
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({foo: 'bar'}));
+        .mockResolvedValue(JSON.stringify({ foo: 'bar' }));
 
       await Plugin.pasteAsPlainText(mockView, pluginInstance);
 
@@ -391,7 +399,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('clipboardHasProseMirrorData: true for correct JSON, false otherwise', async () => {
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({content: []}));
+        .mockResolvedValue(JSON.stringify({ content: [] }));
       const yes = await Plugin.clipboardHasProseMirrorData();
       expect(yes).toBe(true);
 
