@@ -12,6 +12,7 @@ import { v4 as uuidv4 } from 'uuid';
 import { insertReference } from '@modusoperandi/licit-referencing';
 import { createSliceManager } from './slice';
 import { FloatRuntime } from './model';
+import { createKeyMapPlugin, makeKeyMapWithCommon } from '@modusoperandi/licit-doc-attrs-step';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 interface SliceModel {
@@ -24,6 +25,9 @@ interface SliceModel {
   to: string;
   ids: string[];
 }
+export const KEY_COPY = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-c');
+export const KEY_PASTE = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-v');
+export const KEY_PASTE_REF = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-Alt-v');
 
 export class FloatingMenuPlugin extends Plugin {
   _popUpHandle: PopUpHandle | null = null;
@@ -126,6 +130,32 @@ export class FloatingMenuPlugin extends Plugin {
       },
     });
   }
+
+public initKeyCommands(): Plugin[] {
+  return createKeyMapPlugin([
+    {
+      map: {
+        [KEY_COPY.common]: (_state, _dispatch, view) =>
+          copySelectionRich(view, this),
+      },
+      name: 'CopySlicePluginKeyCommands',
+    },
+    {
+      map: {
+        [KEY_PASTE.common]: (_state, _dispatch, view) =>
+          pasteFromClipboard(view, this),
+      },
+      name: 'PasteSlicePluginKeyCommands',
+    },
+    {
+      map: {
+        [KEY_PASTE_REF.common]: (_state, _dispatch, view) =>
+          pasteAsReference(view, this),
+      },
+      name: 'PasteReferencePluginKeyCommands',
+    },
+  ]);
+}
 
   getEffectiveSchema(schema: Schema): Schema {
     return schema;
@@ -299,7 +329,7 @@ export async function pasteAsReference(
     }
     insertReference(
       view,
-      val.id,
+      sliceModel.from,
       val.source,
       view['docView']?.node?.attrs?.objectMetaData?.name
     );
