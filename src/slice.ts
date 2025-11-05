@@ -28,25 +28,24 @@ export function createSliceManager(runtime: FloatRuntime) {
     return docSlices;
   }
 
-  // apply slice attributes to the doc
-  function setSliceAttrs(view: EditorView) {
-    const result = getDocSlices();
-    let tr = view.state.tr;
+      // apply slice attributes to the doc
+    function setSliceAttrs(view: EditorView) {
+      const result = getDocSlices();
+      let tr = view.state.tr;
 
-    result.forEach((obj) => {
-      view.state.doc.descendants((nodeactual: Node, pos) => {
-        if (nodeactual?.attrs?.objectId === obj?.from) {
-          const newattrs = { ...nodeactual.attrs };
-          const isDeco = { ...(newattrs.isDeco || {}) };
-          isDeco.isSlice = true;
-          newattrs.isDeco = isDeco;
-          tr = tr.setNodeMarkup(pos, undefined, newattrs);
-        }
-      });
-    });
-
-    view.dispatch(tr);
-   }
+      for (const obj of result) {
+        view.state.doc.descendants((nodeactual: Node, pos) => {
+          if (nodeactual?.attrs?.objectId === obj?.from) {
+            const newattrs = { ...nodeactual.attrs };
+            const isDeco = { ...newattrs.isDeco };
+            isDeco.isSlice = true;
+            newattrs.isDeco = isDeco;
+            tr = tr.setNodeMarkup(pos, undefined, newattrs);
+          }
+        });
+      }
+      view.dispatch(tr);
+    }
 
     function addInfoIcon(): void {
      return runtime?.insertInfoIconFloat();

@@ -80,10 +80,5 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
         </div>
       </div>
     );
-
-  }
-
-  closePopup(menuName: string): void {
-    this.props.close?.(menuName);
   }
 }

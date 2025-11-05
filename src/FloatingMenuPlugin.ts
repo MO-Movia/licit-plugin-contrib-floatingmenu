@@ -43,10 +43,10 @@ export class FloatingMenuPlugin extends Plugin {
           let decos = prev.decorations;
 
           if (!tr.docChanged) {
-            return { decorations: decos?.map(tr.mapping, tr.doc) };
+            return { decorations: decos?.map((deco) => deco.map(tr.mapping, tr.doc)) };
           }
 
-          decos = decos.map(tr.mapping, tr.doc);
+          decos = decos.map((deco) => deco.map(tr.mapping, tr.doc));
 
           const requiresRescan =
             tr.steps.some((step) => {
@@ -77,21 +77,17 @@ export class FloatingMenuPlugin extends Plugin {
         getDocSlices.call(plugin, view);
 
         view.dom.addEventListener('pointerdown', (e) => {
-          const targetEl = (e.target as HTMLElement).closest(
-            '.float-icon'
-          ) as HTMLElement;
-          if (!targetEl) return;
+        const targetEl = getClosestHTMLElement(e.target, '.float-icon');
+        if (!targetEl) return;
 
-          e.preventDefault();
-          e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
 
-          const wrapper = targetEl.closest(
-            '.pm-hamburger-wrapper'
-          ) as HTMLElement;
-          wrapper?.classList.add('popup-open');
+        const wrapper = getClosestHTMLElement(targetEl, '.pm-hamburger-wrapper');
+        wrapper?.classList.add('popup-open');
 
-          const pos = Number(targetEl.dataset.pos);
-          openFloatingMenu(plugin, view, pos, targetEl);
+        const pos = Number(targetEl.dataset.pos);
+        openFloatingMenu(plugin, view, pos, targetEl);
         });
 
         // --- Alt + Right Click handler ---
@@ -152,7 +148,7 @@ export function copySelectionRich(
 
   navigator.clipboard
     .writeText(JSON.stringify(sliceJSON))
-    .then(() => { }) //console.log('Rich content copied')
+    .then(() => { })
     .catch((err) => console.error('Clipboard write failed', err));
   if (plugin._popUpHandle) {
     plugin._popUpHandle.update({
@@ -206,7 +202,7 @@ export function createSliceObject(editorView: EditorView): SliceModel {
   sliceModel.id = instanceUrl + uuidv4();
   sliceModel.ids = objectIds;
   sliceModel.from = objectIds.length > 0 ? objectIds[0] : '';
-  sliceModel.to = objectIds.length > 0 ? objectIds[objectIds.length - 1] : '';
+  sliceModel.to = objectIds.length > 0 ? objectIds.at(-1) : '';
 
   const viewWithDocView = editorView as EditorView;
   sliceModel.source = viewWithDocView?.['docView']?.node?.attrs?.objectId;
@@ -234,7 +230,7 @@ export function copySelectionPlain(
 
   navigator.clipboard
     .writeText(text)
-    .then(() => { }) //console.log('Plain text copied!'))
+    .then(() => { })
     .catch((err) => console.error('Clipboard write failed:', err));
   if (plugin._popUpHandle?.close) {
     plugin._popUpHandle.close(null);
@@ -406,7 +402,6 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         SliceMark.id = `slicemark-${uuidv4()}`;
         SliceMark.style.fontFamily = 'FontAwesome';
         SliceMark.innerHTML = '&#xf097';
-        // SliceMark.onclick = () => console.log('Slice deco clicked');
         SliceMark.onclick = () => { };
         container.appendChild(SliceMark);
       }
@@ -416,7 +411,7 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         const TagMark = document.createElement('span');
         TagMark.style.fontFamily = 'FontAwesome';
         TagMark.innerHTML = '&#xf02b;';
-        TagMark.onclick = () => { }; //console.log('Tag deco clicked');
+        TagMark.onclick = () => { };
         container.appendChild(TagMark);
       }
 
@@ -425,7 +420,7 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         const CommentMark = document.createElement('span');
         CommentMark.style.fontFamily = 'FontAwesome';
         CommentMark.innerHTML = '&#xf075;';
-        CommentMark.onclick = () => { }; //console.log('Comment deco clicked');
+        CommentMark.onclick = () => { };
         container.appendChild(CommentMark);
       }
 
@@ -516,7 +511,7 @@ export function changeAttribute(_view: EditorView): void {
   if (!node) return; // early return if node does not exist
   let tr = _view.state.tr;
   const newattrs = { ...node.attrs };
-  const isDeco = { ...(newattrs.isDeco || {}) };
+  const isDeco = { ...newattrs.isDeco };
   isDeco.isSlice = true;
   newattrs.isDeco = isDeco;
   tr = tr.setNodeMarkup(from, undefined, newattrs);
@@ -567,4 +562,13 @@ export function createCitationHandler(view: EditorView): void {
   const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
   if (!plugin) return;
   plugin.sliceManager?.addCitation();
+}
+
+export function getClosestHTMLElement(
+  el: EventTarget | null,
+  selector: string
+): HTMLElement | null {
+  if (!(el instanceof Element)) return null;
+  const closest = el.closest(selector);
+  return closest instanceof HTMLElement ? closest : null;
 }
