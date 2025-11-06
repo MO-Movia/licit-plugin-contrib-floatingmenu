@@ -325,7 +325,7 @@ export async function pasteAsPlainText(
 
       const frag = slice.content;
       plainText = '';
-      frag.forEach((node) => {
+      frag.forEach((node) => { // NOSONAR not an iterable
         plainText += node.textContent + '\n';
       });
       plainText = plainText.trim();
