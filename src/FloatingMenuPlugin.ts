@@ -163,8 +163,8 @@ export function copySelectionRich(
 }
 
 export function createSliceObject(editorView: EditorView): SliceModel {
-  const instanceUrl = 'http://modusoperandi.com/editor/instance/';
-  const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';
+  const instanceUrl = 'http://modusoperandi.com/editor/instance/';   // NOSONAR - These are semantic IRIs
+  const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';   // NOSONAR - These are semantic IRIs
 
   const sliceModel: SliceModel = {
     name: '',
