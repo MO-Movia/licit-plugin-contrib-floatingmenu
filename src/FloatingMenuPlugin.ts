@@ -370,7 +370,8 @@ export async function clipboardHasProseMirrorData(): Promise<boolean> {
 export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
 
-  doc?.forEach((node: Node, pos: number) => {
+  doc?.forEach( // NOSONAR not an iterable
+      (node: Node, pos: number) => {
     if (node.type.name !== 'paragraph') return;
     const wrapper = document.createElement('span');
     wrapper.className = 'pm-hamburger-wrapper';
