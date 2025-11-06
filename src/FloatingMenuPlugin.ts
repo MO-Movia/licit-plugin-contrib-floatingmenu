@@ -43,10 +43,10 @@ export class FloatingMenuPlugin extends Plugin {
           let decos = prev.decorations;
 
           if (!tr.docChanged) {
-            return { decorations: decos?.map((deco) => deco.map(tr.mapping, tr.doc)) };
+            return { decorations: decos ? DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc) : decos };
           }
 
-          decos = decos.map((deco) => deco.map(tr.mapping, tr.doc));
+          decos = DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc);
 
           const requiresRescan =
             tr.steps.some((step) => {
@@ -204,7 +204,7 @@ export function createSliceObject(editorView: EditorView): SliceModel {
   sliceModel.from = objectIds.length > 0 ? objectIds[0] : '';
   sliceModel.to = objectIds.length > 0 ? objectIds.at(-1) : '';
 
-  const viewWithDocView = editorView as EditorView;
+  const viewWithDocView = editorView;
   sliceModel.source = viewWithDocView?.['docView']?.node?.attrs?.objectId;
   sliceModel.referenceType = referenceUrl;
 
@@ -248,20 +248,17 @@ export async function pasteFromClipboard(
     const text = await navigator.clipboard.readText();
     let tr: Transaction;
 
-    try {
-      // Try parsing as JSON slice
+    if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
       const parsed = JSON.parse(text);
       const slice = Slice.fromJSON(view.state.schema, parsed);
       tr = view.state.tr.replaceSelection(slice);
-    } catch (jsonErr) {
-      // If not JSON, treat as plain text
+    } else {
       tr = view.state.tr.insertText(
         text,
         view.state.selection.from,
         view.state.selection.to
       );
     }
-
     view.dispatch(tr.scrollIntoView());
   } catch (err) {
     console.error('Clipboard paste failed:', err);
