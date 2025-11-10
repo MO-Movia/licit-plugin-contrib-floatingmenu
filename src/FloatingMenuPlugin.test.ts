@@ -1,4 +1,7 @@
 /**
+ * @license MIT
+ * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
+ *
  * @jest-environment jsdom
  */
 
@@ -112,7 +115,7 @@ describe('FloatingMenuPlugin', () => {
     wrapper.appendChild(hamburger);
     view.dom.appendChild(wrapper);
 
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const event = new Event('pointerdown', { bubbles: true });
     hamburger.dispatchEvent(event);
@@ -320,7 +323,7 @@ describe('createSliceObject', () => {
 
     // Add a fake docView with objectId
 
-    (view as EditorView)['docView'] = { node: { attrs: { objectId: 'sourceObj' } } };
+    (view).docView = { node: { attrs: { objectId: 'sourceObj' } } };
 
     const slice = createSliceObject(view);
 
@@ -541,7 +544,7 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
     view = new EditorView(document.createElement('div'), { state });
 
     // add runtime mock
-    (view as EditorView)['runtime'] = {
+    (view).runtime = {
       createSlice: jest.fn().mockResolvedValue('ok'),
     };
 
@@ -575,7 +578,7 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
       _popUpHandle: null,
     } as unknown as FloatingMenuPlugin;
 
-    (view as EditorView)['docView'] = {
+    (view).docView = {
       node: { attrs: { objectMetaData: { name: 'docName' } } },
     };
 
@@ -601,7 +604,7 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
     (navigator.clipboard.readText as jest.Mock).mockResolvedValue(
       JSON.stringify({ sliceModel })
     );
-    (view as EditorView)['runtime'].createSlice = jest
+    (view).runtime.createSlice = jest
       .fn()
       .mockRejectedValue(new Error('fail'));
     const consoleErrorSpy = jest
@@ -872,7 +875,7 @@ describe('getDecorations', () => {
     const decorations = getDecorations(doc, state);
     expect(decorations).toBeDefined();
   });
-  it('creates hamburger ', () => {
+  it('creates hamburger', () => {
     const schema = new Schema({
       nodes: {
         doc: {
@@ -1230,7 +1233,7 @@ it('should handle apply (use a real transaction with steps)', () => {
   });
 
   // Create a minimal doc and state so we can make a real transaction.
-  const doc = schema.nodes.doc.createAndFill()!;
+  const doc = schema.nodes.doc.createAndFill();
   const state = EditorState.create({ schema, doc, plugins: [plugin] });
 
   // create a real transaction that will change the doc (insert a paragraph)
@@ -1252,7 +1255,7 @@ it('should handle apply (use a real transaction with steps)', () => {
   expect(newPluginState?.decorations).toBeDefined();
 });
 });
-describe('createNewSlice ', () => {
+describe('createNewSlice', () => {
   it('should call sliceManager.createSliceViaDialog and addSliceToList', async () => {
     const createSliceViaDialogMock = jest.fn().mockResolvedValue({ id: 'slice1' });
     const addSliceToListMock = jest.fn();
@@ -1287,8 +1290,8 @@ describe('createNewSlice ', () => {
     expect(addSliceToListMock).toHaveBeenCalledWith({ id: 'slice1' });
   });
 });
-describe('openFloatingMenu ', () => {
-  it('openFloatingMenu ', () => {
+describe('openFloatingMenu', () => {
+  it('openFloatingMenu', () => {
     const plug = new FloatingMenuPlugin({} as unknown as FloatRuntime);
     plug._popUpHandle = { close: () => { }, update: () => { } };
     expect(
@@ -1323,8 +1326,8 @@ describe('openFloatingMenu ', () => {
     ).toBeUndefined();
   });
 });
-describe('addAltRightClickHandler ', () => {
-  it('addAltRightClickHandler ', () => {
+describe('addAltRightClickHandler', () => {
+  it('addAltRightClickHandler', () => {
     const plug = new FloatingMenuPlugin({} as unknown as FloatRuntime);
     plug._popUpHandle = { close: () => { }, update: () => { } };
     expect(
@@ -1547,7 +1550,7 @@ describe('FloatingMenuPlugin - Additional Coverage', () => {
 
   // Test pointerdown on non-hamburger element
   it('should not open menu when clicking outside hamburger icon', () => {
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const nonHamburger = document.createElement('div');
     view.dom.appendChild(nonHamburger);
@@ -1561,7 +1564,7 @@ describe('FloatingMenuPlugin - Additional Coverage', () => {
   // Test Alt + Right click when not editable
   it('should not open menu on Alt+Right-click when view is not editable', () => {
     const nonEditableView = { ...view, editable: false };
-    plugin.spec.view!(nonEditableView as EditorView);
+    plugin.spec.view(nonEditableView as EditorView);
 
     const event = new MouseEvent('contextmenu', {
       bubbles: true,
@@ -1586,7 +1589,7 @@ describe('FloatingMenuPlugin - Additional Coverage', () => {
     wrapper.appendChild(hamburger);
     view.dom.appendChild(wrapper);
 
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const event = new MouseEvent('pointerdown', { bubbles: true });
     hamburger.dispatchEvent(event);
@@ -2110,7 +2113,7 @@ describe('FloatingMenuPlugin - 100% Coverage', () => {
   // Test view return object
   it('should return empty object from view function', () => {
     const viewFn = plugin.spec.view;
-    const result = viewFn!(view);
+    const result = viewFn(view);
     expect(result).toEqual({});
   });
 });
@@ -2542,7 +2545,7 @@ describe('Pointerdown Event Handler - Complete Coverage', () => {
   });
 
   it('should not trigger when clicking on non-float-icon element', () => {
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const div = document.createElement('div');
     div.className = 'some-other-element';
@@ -2565,7 +2568,7 @@ describe('Pointerdown Event Handler - Complete Coverage', () => {
     wrapper.appendChild(hamburger);
     view.dom.appendChild(wrapper);
 
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const event = new MouseEvent('pointerdown', { bubbles: true });
     hamburger.dispatchEvent(event);
@@ -2597,7 +2600,7 @@ describe('Document Click Handler - Complete Coverage', () => {
   it('should not close popup when clicking inside context-menu', () => {
     const closeSpy = jest.fn();
     plugin._popUpHandle = { close: closeSpy, update: jest.fn() };
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const contextMenu = document.createElement('div');
     contextMenu.className = 'context-menu';
@@ -2616,7 +2619,7 @@ describe('Document Click Handler - Complete Coverage', () => {
   it('should not close popup when clicking on float-icon', () => {
     const closeSpy = jest.fn();
     plugin._popUpHandle = { close: closeSpy, update: jest.fn() };
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const floatIcon = document.createElement('span');
     floatIcon.className = 'float-icon';
@@ -2634,7 +2637,7 @@ describe('Document Click Handler - Complete Coverage', () => {
 
   it('should not throw error when _popUpHandle is null', () => {
     plugin._popUpHandle = null;
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const outsideElement = document.createElement('div');
     document.body.appendChild(outsideElement);
@@ -2668,7 +2671,7 @@ describe('Context Menu Handler - View Editability', () => {
 
   it('should not open menu when view is not editable', () => {
     view.editable = false;
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const event = new MouseEvent('contextmenu', {
       button: 2,
@@ -2689,7 +2692,7 @@ describe('Context Menu Handler - View Editability', () => {
 
   it('should open menu when view is editable', async () => {
     view.editable = true;
-    plugin.spec.view!(view);
+    plugin.spec.view(view);
 
     const event = new MouseEvent('contextmenu', {
       button: 2,
@@ -2734,7 +2737,7 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
       },
     });
 
-    const doc = schema.nodes.doc.createAndFill()!;
+    const doc = schema.nodes.doc.createAndFill();
     const state = EditorState.create({ schema, doc, plugins: [plugin] });
 
     // Create a transaction that does NOT change the document (no steps)
@@ -2787,7 +2790,7 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
     const view = new EditorView(document.createElement('div'), { state });
 
     // Provide docView meta so insertReference receives a doc name
-    (view as unknown as EditorView)['docView'] = { node: { attrs: { objectMetaData: { name: 'TestDoc' } } } };
+    (view as unknown as EditorView).docView = { node: { attrs: { objectMetaData: { name: 'TestDoc' } } } };
 
     await showReferences(view);
 

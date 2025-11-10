@@ -1,12 +1,8 @@
 /**
- * FloatingPopup_and_Plugin.test.tsx
- *
- * Combined tests:
- *  - UI tests for FloatingMenu (your original tests, made robust)
- *  - Unit tests for FloatingMenuPlugin helper functions (fixed assertions & mocks)
+ * @license MIT
+ * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
  */
 
-import { DecorationSet } from 'prosemirror-view';
 import React from 'react';
 import ReactDOM from 'react-dom';
 import { FloatingMenu } from './FloatingPopup';
@@ -59,26 +55,25 @@ jest.mock('@modusoperandi/licit-referencing', () => ({
   insertReference: jest.fn(),
 }));
 
-// Polyfill clipboard in JSDOM
-beforeAll(() => {
-  if (!(navigator as Navigator).clipboard) {
-    Object.assign(navigator, {
-      clipboard: {
-        readText: jest.fn().mockResolvedValue('mock text'),
-        writeText: jest.fn().mockResolvedValue(undefined),
-      },
-    });
-  } else {
-    (navigator.clipboard.readText as () => Promise<string>) =
-      (navigator.clipboard.readText as () => Promise<string>) ||
-      jest.fn().mockResolvedValue('mock text');
-    (navigator.clipboard.writeText as () => Promise<void>) =
-      (navigator.clipboard.writeText as () => Promise<void>) ||
-      jest.fn().mockResolvedValue(undefined);
-  }
-});
-
 describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
+  // Polyfill clipboard in JSDOM
+  beforeAll(() => {
+    if (navigator.clipboard) {
+      (navigator.clipboard.readText as () => Promise<string>) =
+        (navigator.clipboard.readText as () => Promise<string>) ||
+        jest.fn().mockResolvedValue('mock text');
+      (navigator.clipboard.writeText as () => Promise<void>) =
+        (navigator.clipboard.writeText as () => Promise<void>) ||
+        jest.fn().mockResolvedValue(undefined);
+    } else {
+      Object.assign(navigator, {
+        clipboard: {
+          readText: jest.fn().mockResolvedValue('mock text'),
+          writeText: jest.fn().mockResolvedValue(undefined),
+        },
+      });
+    }
+  });
   // -------------------------
   // UI tests
   // -------------------------
@@ -95,8 +90,8 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         paragraphPos: 1,
         editorState: {
           selection: {
-            $from: { before: () => 1, depth: 1 },
-            $to: { before: () => 1, depth: 1 },
+            $from: {before: () => 1, depth: 1},
+            $to: {before: () => 1, depth: 1},
             empty: false,
           },
         },
@@ -130,12 +125,12 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         (b) => b.textContent === label
       );
       if (!btn) throw new Error(`Button '${label}' not found`);
-      return btn as HTMLButtonElement;
+      return btn;
     }
 
     function click(label: string) {
       const btn = getButton(label);
-      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
+      btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
     }
 
     it('renders all buttons', () => {
@@ -275,7 +270,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       docNode = basicSchema.node('doc', null, [
         basicSchema.node(
           'paragraph',
-          { objectId: 'a1', isDeco: { isSlice: true } },
+          {objectId: 'a1', isDeco: {isSlice: true}},
           [basicSchema.text('First paragraph')]
         ),
         basicSchema.node('paragraph', null, [
@@ -300,21 +295,21 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
           },
           doc: docNode,
           tr: {
-            insertText: jest.fn(() => ({ scrollIntoView: () => ({}) })),
-            replaceSelection: jest.fn(() => ({ scrollIntoView: () => ({}) })),
+            insertText: jest.fn(() => ({scrollIntoView: () => ({})})),
+            replaceSelection: jest.fn(() => ({scrollIntoView: () => ({})})),
           },
         },
         dispatch: jest.fn(),
         runtime: {
-          createSlice: jest.fn((m) => Promise.resolve({ ok: true, model: m })),
+          createSlice: jest.fn((m) => Promise.resolve({ok: true, model: m})),
         },
         hasFocus: jest.fn(() => true),
         docView: {
-          node: { attrs: { objectId: 'doc-x', objectMetaData: { name: 'MyDoc' } } },
+          node: {attrs: {objectId: 'doc-x', objectMetaData: {name: 'MyDoc'}}},
         },
       };
 
-      mockPopUpHandle = { close: jest.fn(), update: jest.fn() };
+      mockPopUpHandle = {close: jest.fn(), update: jest.fn()};
       pluginInstance = new Plugin.FloatingMenuPlugin({} as FloatRuntime);
       pluginInstance._popUpHandle = mockPopUpHandle;
       pluginInstance._view = mockView;
@@ -365,10 +360,10 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     });
 
     it('pasteAsReference: reads sliceModel and calls runtime.createSlice + insertReference', async () => {
-      const sliceModel = { id: 'slice-1', source: 'doc-x' };
+      const sliceModel = {id: 'slice-1', source: 'doc-x'};
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({ sliceModel }));
+        .mockResolvedValue(JSON.stringify({sliceModel}));
 
       await Plugin.pasteAsReference(mockView, pluginInstance);
 
@@ -378,7 +373,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('pasteAsPlainText: when clipboard contains JSON with non-slice data falls back and dispatches', async () => {
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({ foo: 'bar' }));
+        .mockResolvedValue(JSON.stringify({foo: 'bar'}));
 
       await Plugin.pasteAsPlainText(mockView, pluginInstance);
 
@@ -389,7 +384,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('clipboardHasProseMirrorData: true for correct JSON, false otherwise', async () => {
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({ content: [] }));
+        .mockResolvedValue(JSON.stringify({content: []}));
       const yes = await Plugin.clipboardHasProseMirrorData();
       expect(yes).toBe(true);
 
@@ -400,9 +395,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
 
     it('getDecorations returns a DecorationSet-like object (findable)', () => {
       const decos = Plugin.getDecorations(mockView.state.doc, mockView.state);
-      const found = (decos as DecorationSet).find
-        ? (decos as DecorationSet).find()
-        : [];
+      const found = decos.find ? decos.find() : [];
       expect(Array.isArray(found)).toBe(true);
       expect(found.length).toBeGreaterThanOrEqual(0);
     });

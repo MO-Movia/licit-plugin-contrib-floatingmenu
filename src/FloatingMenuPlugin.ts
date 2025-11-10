@@ -1,4 +1,9 @@
-// A generic Floating Menu ProseMirror Plugin
+/**
+ * @license MIT
+ * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
+ * @file A generic Floating Menu ProseMirror Plugin
+ */
+
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { Node, Schema, Slice } from 'prosemirror-model';
 import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
@@ -164,7 +169,7 @@ export function copySelectionRich(
 
 export function createSliceObject(editorView: EditorView): SliceModel {
   const instanceUrl = 'http://modusoperandi.com/editor/instance/';   // NOSONAR - These are semantic IRIs
-  const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';   // NOSONAR - These are semantic IRIs
+  const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';   // These need to be configurable
 
   const sliceModel: SliceModel = {
     name: '',
@@ -472,7 +477,7 @@ export function openFloatingMenu(
         },
       }
     );
-  });
+  }).catch(console.error);
 }
 
 export function addAltRightClickHandler(
