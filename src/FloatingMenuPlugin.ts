@@ -6,6 +6,8 @@ import {
   createPopUp,
   PopUpHandle,
   atAnchorBottomLeft,
+  atAnchorTopRight,
+  Rect
 } from '@modusoperandi/licit-ui-commands';
 import { FloatingMenu } from './FloatingPopup';
 import { v4 as uuidv4 } from 'uuid';
@@ -377,6 +379,16 @@ export async function pasteAsPlainText(
   }
 }
 
+export async function clipboardHasData(): Promise<boolean> {
+  try {
+    const text = await navigator.clipboard.readText();
+    if (!text) return false;
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export async function clipboardHasProseMirrorData(): Promise<boolean> {
   try {
     const text = await navigator.clipboard.readText();
@@ -458,6 +470,52 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   return DecorationSet.create(state.doc, decorations);
 }
 
+function positionAboveOrBelow(anchorRect?: Rect, bodyRect?: Rect): Rect {
+  if (!anchorRect) {
+    return { x: 4, y: 4, w: 0, h: 0 };
+  }
+
+  const estimatedWidth = bodyRect && bodyRect.w > 0 ? bodyRect.w : 180;
+  const estimatedHeight = bodyRect && bodyRect.h > 0 ? bodyRect.h : 220;
+
+
+  const menuW = estimatedWidth;
+  const menuH = estimatedHeight;
+
+  // available space below/above relative to viewport
+  const anchorBottom = anchorRect.y + anchorRect.h;
+  const spaceBelow = window.innerHeight - anchorBottom;
+  const spaceAbove = anchorRect.y;
+
+  let y: number;
+  let x: number;
+
+  if (spaceBelow < menuH && spaceAbove > menuH) {
+    y = anchorRect.y - menuH - 6; // small gap
+  } else {
+    y = anchorBottom + 6;
+  }
+
+  x = anchorRect.x;
+  if (x + menuW > window.innerWidth - 6) {
+    x = Math.max(6, window.innerWidth - menuW - 6);
+  }
+
+  x = Math.max(6, x);
+
+  if (y < 6) y = 6;
+  if (y + menuH > window.innerHeight - 6) {
+    y = Math.max(6, window.innerHeight - menuH - 6);
+  }
+
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: Math.round(menuW),
+    h: Math.round(menuH),
+  };
+}
+
 export function openFloatingMenu(
   plugin: FloatingMenuPlugin,
   view: EditorView,
@@ -471,15 +529,18 @@ export function openFloatingMenu(
     plugin._popUpHandle = null;
   }
 
-  // Determine if clipboard has ProseMirror data
-  clipboardHasProseMirrorData().then((hasPM) => {
-    plugin._popUpHandle = createPopUp(
+  // Delay actual opening to avoid the "same click closes it" race
+  setTimeout(() => {
+    Promise.all([clipboardHasProseMirrorData(), clipboardHasData()]).then(
+      ([hasPM, clipboardHasData]) => {
+        const popupHandle = createPopUp(
       FloatingMenu,
       {
         editorState: view.state,
         editorView: view,
         paragraphPos: pos,
         pasteAsReferenceEnabled: hasPM,
+            enablePasteAsPlainText: clipboardHasData,
         copyRichHandler: () => copySelectionRich(view, plugin),
         copyPlainHandler: () => copySelectionPlain(view, plugin),
         pasteHandler: () => pasteFromClipboard(view, plugin),
@@ -491,7 +552,7 @@ export function openFloatingMenu(
       {
         anchor: anchorEl || view.dom,
         contextPos: contextPos,
-        position: atAnchorBottomLeft,
+            position: positionAboveOrBelow,
         autoDismiss: false,
         onClose: () => {
           plugin._popUpHandle = null;
@@ -502,7 +563,23 @@ export function openFloatingMenu(
         },
       }
     );
-  });
+        plugin._popUpHandle = popupHandle;
+        setTimeout(() => {
+          const listener = (ev: PointerEvent) => {
+            const popupEl = document.querySelector('.context-menu') as HTMLElement | null;
+            const target = ev.target as unknown as globalThis.Node | null;
+            const insidePopup = popupEl?.contains(target);
+            const insideAnchor = anchorEl?.contains(target);
+            if (!insidePopup && !insideAnchor) {
+              popupHandle.close(null);
+              document.removeEventListener('pointerdown', listener, true);
+            }
+          };
+          document.addEventListener('pointerdown', listener, true);
+        }, 200); // wait for 200ms to fully ignore the opening click
+      }
+    );
+  }, 0);
 }
 
 export function addAltRightClickHandler(

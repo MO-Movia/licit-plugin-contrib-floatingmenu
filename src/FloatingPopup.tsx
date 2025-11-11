@@ -9,6 +9,7 @@ interface FloatingMenuProps {
   editorView: EditorView;
   paragraphPos: number;
   pasteAsReferenceEnabled: boolean;
+  enablePasteAsPlainText: boolean;
   copyRichHandler: () => void;
   copyPlainHandler: () => void;
   createCitationHandler: () => void;
@@ -57,14 +58,14 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
             onClick={this.props.createInfoIconHandler}
           />
 
-          <CustomButton label="Copy" onClick={this.props.copyRichHandler} />
-          <CustomButton label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
+          <CustomButton disabled={!enableCitationAndComment} label="Copy" onClick={this.props.copyRichHandler} />
+          <CustomButton disabled={!enableCitationAndComment} label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
 
-          <CustomButton label="Paste" onClick={() => {
+          <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste" onClick={() => {
             this.props.pasteHandler();
           }}
           />
-          <CustomButton label="Paste As Plain Text" onClick={this.props.pastePlainHandler} />
+          <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste As Plain Text" onClick={this.props.pastePlainHandler} />
           <CustomButton
             disabled={!this.props.pasteAsReferenceEnabled}
             label="Paste As Reference"
