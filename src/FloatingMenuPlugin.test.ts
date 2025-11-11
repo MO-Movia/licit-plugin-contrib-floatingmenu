@@ -5,7 +5,7 @@
 import { EditorState, TextSelection, Transaction } from 'prosemirror-state';
 
 import { DecorationSet, EditorView } from 'prosemirror-view';
-import { Schema, Node } from 'prosemirror-model';
+import { Schema, Node, NodeSpec } from 'prosemirror-model';
 import {
   FloatingMenuPlugin,
   changeAttribute,
@@ -24,6 +24,7 @@ import {
   createCitationHandler,
   CMPluginKey,
   getDocSlices,
+  getClosestHTMLElement,
 } from './FloatingMenuPlugin';
 import { insertReference } from '@modusoperandi/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
@@ -1212,36 +1213,44 @@ describe('changeAttribute', () => {
     // Use deep equality
     expect(newPluginState).toBeDefined();
   });
-  it('should handle apply', () => {
-    const oldPluginState = {
-      active: false,
-      decorations: {
-        map: () => {
-          return {};
-        },
+it('should handle apply (use a real transaction with steps)', () => {
+  const plugin = new FloatingMenuPlugin(mockRuntime);
+
+  const schema = new Schema({
+    nodes: {
+      doc: { content: 'paragraph+' },
+      paragraph: {
+        content: 'text*',
+        group: 'block',
+        parseDOM: [{ tag: 'p' }],
+        toDOM: () => ['p', 0],
       },
-    };
-    const trMock = {
-      docChanged: true,
-      steps: [
-        {
-          toJSON: () => {
-            return { stepType: 'setNodeMarkup' };
-          },
-        },
-      ],
-    } as Transaction;
-    const oldState = {} as EditorState;
-    const newState = {} as EditorState;
-    const plugin = new FloatingMenuPlugin(mockRuntime);
-    const applyFn = plugin.spec.state?.apply;
-    expect(applyFn).toBeDefined();
-    if (!applyFn) {
-      throw new Error('Plugin apply function is undefined');
-    }
-    const newPluginState = applyFn(trMock, oldPluginState, oldState, newState);
-    expect(newPluginState).toBeDefined();
+      text: { group: 'inline' },
+    },
   });
+
+  // Create a minimal doc and state so we can make a real transaction.
+  const doc = schema.nodes.doc.createAndFill()!;
+  const state = EditorState.create({ schema, doc, plugins: [plugin] });
+
+  // create a real transaction that will change the doc (insert a paragraph)
+  const tr = state.tr.insert(0, schema.nodes.paragraph.create());
+  // Ensure there is at least one step so that mapping exists.
+  expect(tr.steps.length).toBeGreaterThan(0);
+
+  // Provide a previous plugin state with a DecorationSet-like object to exercise mapping
+  const prevPluginState = {
+    decorations: DecorationSet.create(state.doc, []),
+  };
+
+  const applyFn = plugin.spec.state?.apply;
+  expect(applyFn).toBeDefined();
+  if (!applyFn) throw new Error('Plugin apply function is undefined');
+
+  const newPluginState = applyFn(tr as unknown as Transaction, prevPluginState, state, state);
+  expect(newPluginState).toBeDefined();
+  expect(newPluginState?.decorations).toBeDefined();
+});
 });
 describe('createNewSlice ', () => {
   it('should call sliceManager.createSliceViaDialog and addSliceToList', async () => {
@@ -1941,25 +1950,28 @@ describe('Plugin state apply - Additional Coverage', () => {
           parseDOM: [{ tag: 'p' }],
           toDOM: () => ['p', 0],
         },
-        text: {
-          group: 'inline',
-        },
+        text: { group: 'inline' },
       },
     });
 
     const doc = schema.nodes.doc.create({}, [
       schema.nodes.paragraph.create({}, schema.text('test')),
     ]);
+
     const state = EditorState.create({ schema, doc, plugins: [plugin] });
+
+    const pluginState = plugin.getState(state);
+    if (pluginState) {
+      pluginState.decorations = DecorationSet.create(doc, []);
+    }
 
     const tr = state.tr.insert(0, schema.nodes.paragraph.create());
     const newState = state.apply(tr);
-    const pluginState = plugin.getState(newState);
 
-    expect(pluginState?.decorations).toBeDefined();
+    const newPluginState = plugin.getState(newState);
+    expect(newPluginState?.decorations).toBeDefined();
   });
-
-  it('should handle forceRescan meta', () => {
+    it('should handle forceRescan meta', () => {
     const plugin = new FloatingMenuPlugin(mockRuntime);
     const schema = new Schema({
       nodes: {
@@ -1970,18 +1982,26 @@ describe('Plugin state apply - Additional Coverage', () => {
           parseDOM: [{ tag: 'p' }],
           toDOM: () => ['p', 0],
         },
-        text: {
-          group: 'inline',
-        },
+        text: { group: 'inline' },
       },
     });
 
-    const state = EditorState.create({ schema, plugins: [plugin] });
+    const doc = schema.nodes.doc.create({}, [
+      schema.nodes.paragraph.create({}, schema.text('init')),
+    ]);
+
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+
+    const pluginState = plugin.getState(state);
+    if (pluginState) {
+      pluginState.decorations = DecorationSet.create(state.doc, []);
+    }
+
     const tr = state.tr.setMeta(CMPluginKey, { forceRescan: true });
     const newState = state.apply(tr);
-    const pluginState = plugin.getState(newState);
 
-    expect(pluginState?.decorations).toBeDefined();
+    const newPluginState = plugin.getState(newState);
+    expect(newPluginState?.decorations).toBeDefined();
   });
 });
 
@@ -2026,4 +2046,787 @@ describe('copySelectionPlain - Additional Coverage', () => {
 
   consoleErrorSpy.mockRestore();
 });
+});
+/**
+ * Additional tests to achieve 100% function coverage
+ * Add these tests to your existing test file
+ */
+
+describe('FloatingMenuPlugin - 100% Coverage', () => {
+  let schema: Schema;
+  let plugin: FloatingMenuPlugin;
+  let view: EditorView;
+  let state: EditorState;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+          attrs: { objectId: { default: '' }, isDeco: { default: null } },
+        },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+
+    plugin = new FloatingMenuPlugin(mockRuntime);
+    state = EditorState.create({ schema, plugins: [plugin] });
+    view = new EditorView(document.createElement('div'), { state });
+  });
+
+  // Test outsideClickHandler when clicking on .context-menu
+  it('should not close popup when clicking inside context-menu', () => {
+    plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
+    const contextMenu = document.createElement('div');
+    contextMenu.className = 'context-menu';
+    document.body.appendChild(contextMenu);
+    const clickEvent = new MouseEvent('click', { bubbles: true });
+    Object.defineProperty(clickEvent, 'target', { value: contextMenu, writable: false });
+    document.dispatchEvent(clickEvent);
+    expect(plugin._popUpHandle.close).not.toHaveBeenCalled();
+    document.body.removeChild(contextMenu);
+  });
+
+  // Test outsideClickHandler when clicking on .float-icon
+  it('should not close popup when clicking on float-icon', () => {
+    plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
+    const floatIcon = document.createElement('div');
+    floatIcon.className = 'float-icon';
+    document.body.appendChild(floatIcon);
+    const clickEvent = new MouseEvent('click', { bubbles: true });
+    Object.defineProperty(clickEvent, 'target', { value: floatIcon, writable: false });
+    document.dispatchEvent(clickEvent);
+    expect(plugin._popUpHandle.close).not.toHaveBeenCalled();
+    document.body.removeChild(floatIcon);
+  });
+
+  // Test view return object
+  it('should return empty object from view function', () => {
+    const viewFn = plugin.spec.view;
+    const result = viewFn!(view);
+    expect(result).toEqual({});
+  });
+});
+
+describe('getClosestHTMLElement - 100% Coverage', () => {
+  it('should return null when el is not an Element', () => {
+    const result = getClosestHTMLElement(null, '.test');
+    expect(result).toBeNull();
+  });
+
+  it('should return null when el is a non-Element EventTarget', () => {
+    const textNode = document.createTextNode('text');
+    const result = getClosestHTMLElement(textNode, '.test');
+    expect(result).toBeNull();
+  });
+
+  it('should return null when closest returns non-HTMLElement', () => {
+    const svgElement = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+    const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+    circle.setAttribute('class', 'test');
+    svgElement.appendChild(circle);
+    const result = getClosestHTMLElement(circle, 'svg');
+    expect(result).toBeNull();
+  });
+
+  it('should return HTMLElement when found', () => {
+    const div = document.createElement('div');
+    div.className = 'test';
+    const span = document.createElement('span');
+    div.appendChild(span);
+    const result = getClosestHTMLElement(span, '.test');
+    expect(result).toBe(div);
+  });
+});
+
+describe('openFloatingMenu - 100% Coverage', () => {
+  let plugin: FloatingMenuPlugin;
+  let view: EditorView;
+  let schema: Schema;
+  beforeEach(() => {
+    jest.clearAllMocks();
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+    const state = EditorState.create({ schema });
+    view = new EditorView(document.createElement('div'), { state });
+    plugin = new FloatingMenuPlugin(mockRuntime);
+  });
+
+  it('should remove popup-open class in onClose callback', async () => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pm-hamburger-wrapper';
+    const anchorEl = document.createElement('span');
+    anchorEl.className = 'float-icon';
+    wrapper.appendChild(anchorEl);
+    document.body.appendChild(wrapper);
+    openFloatingMenu(plugin, view, 1, anchorEl);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    wrapper.classList.add('popup-open');
+    const mockCall = (licitCommands.createPopUp as jest.Mock).mock.calls[0];
+    if (mockCall && mockCall[2]) {
+      const onCloseCallback = mockCall[2].onClose;
+      onCloseCallback();
+      expect(wrapper.classList.contains('popup-open')).toBe(false);
+    }
+    document.body.removeChild(wrapper);
+  });
+
+  it('should handle anchorEl without parent wrapper', async () => {
+    const anchorEl = document.createElement('span');
+    document.body.appendChild(anchorEl);
+    openFloatingMenu(plugin, view, 1, anchorEl);
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const mockCall = (licitCommands.createPopUp as jest.Mock).mock.calls[0];
+    if (mockCall && mockCall[2]) {
+      const onCloseCallback = mockCall[2].onClose;
+      expect(() => onCloseCallback()).not.toThrow();
+    }
+    document.body.removeChild(anchorEl);
+  });
+});
+
+describe('copySelectionRich - Error Handling', () => {
+  let schema: Schema;
+  let view: EditorView;
+  let plugin: FloatingMenuPlugin;
+  beforeEach(() => {
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: { content: 'text*', group: 'block', toDOM: () => ['p', 0] },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+    const doc = schema.nodes.doc.create({}, [
+      schema.nodes.paragraph.create({}, schema.text('Test')),
+    ]);
+    const state = EditorState.create({ schema, doc });
+    view = new EditorView(document.createElement('div'), { state });
+    plugin = new FloatingMenuPlugin(mockRuntime);
+  });
+
+  it('should catch and log clipboard write errors', async () => {
+    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockRejectedValue(new Error('Write failed')),
+      },
+    });
+    const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
+    view.updateState(view.state.apply(tr));
+    await copySelectionRich(view, plugin);
+    await Promise.resolve();
+    expect(consoleErrorSpy).toHaveBeenCalledWith('Clipboard write failed', expect.any(Error));
+    consoleErrorSpy.mockRestore();
+  });
+
+  it('should handle successful clipboard write', async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+    const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
+    view.updateState(view.state.apply(tr));
+    await copySelectionRich(view, plugin);
+    await Promise.resolve();
+    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+  });
+});
+
+describe('copySelectionPlain - Error Handling', () => {
+  let schema: Schema;
+  let view: EditorView;
+  let plugin: FloatingMenuPlugin;
+
+  beforeEach(() => {
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: { content: 'text*', group: 'block', toDOM: () => ['p', 0] },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+
+    const doc = schema.nodes.doc.create({}, [
+      schema.nodes.paragraph.create({}, schema.text('Test')),
+    ]);
+
+    const state = EditorState.create({ schema, doc });
+    view = new EditorView(document.createElement('div'), { state });
+    plugin = new FloatingMenuPlugin(mockRuntime);
+  });
+
+  it('should handle successful clipboard write', async () => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+
+    const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
+    view.updateState(view.state.apply(tr));
+
+    await copySelectionPlain(view, plugin);
+    await Promise.resolve();
+
+    expect(navigator.clipboard.writeText).toHaveBeenCalled();
+  });
+});
+
+describe('getDecorations - Complete Coverage', () => {
+  let schema: Schema;
+  let state: EditorState;
+
+  beforeEach(() => {
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'block+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          attrs: { isDeco: { default: null } },
+        },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+  });
+
+  it('should handle onclick callbacks for slice mark', () => {
+    const jsonDoc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { isDeco: { isSlice: true, isTag: false, isComment: false } },
+          content: [{ type: 'text', text: 'Test' }],
+        },
+      ],
+    };
+    const doc = schema.nodeFromJSON(jsonDoc);
+    state = EditorState.create({ schema, doc });
+    const decorations = getDecorations(doc, state);
+    expect(decorations).toBeDefined();
+    expect(decorations.find().length).toBeGreaterThan(0);
+  });
+
+  it('should handle onclick callbacks for tag mark', () => {
+    const jsonDoc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { isDeco: { isSlice: false, isTag: true, isComment: false } },
+          content: [{ type: 'text', text: 'Test' }],
+        },
+      ],
+    };
+    const doc = schema.nodeFromJSON(jsonDoc);
+    state = EditorState.create({ schema, doc });
+
+    const decorations = getDecorations(doc, state);
+    expect(decorations).toBeDefined();
+  });
+
+  it('should handle onclick callbacks for comment mark', () => {
+    const jsonDoc = {
+      type: 'doc',
+      content: [
+        {
+          type: 'paragraph',
+          attrs: { isDeco: { isSlice: false, isTag: false, isComment: true } },
+          content: [{ type: 'text', text: 'Test' }],
+        },
+      ],
+    };
+    const doc = schema.nodeFromJSON(jsonDoc);
+    state = EditorState.create({ schema, doc });
+
+    const decorations = getDecorations(doc, state);
+    expect(decorations).toBeDefined();
+  });
+});
+
+describe('addAltRightClickHandler - Complete Coverage', () => {
+  let view: EditorView;
+  let plugin: FloatingMenuPlugin;
+
+  beforeEach(() => {
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: { content: 'text*', group: 'block', toDOM: () => ['p', 0] },
+        text: { group: 'inline' },
+      },
+    });
+
+    const state = EditorState.create({ schema });
+    view = new EditorView(document.createElement('div'), { state });
+    plugin = new FloatingMenuPlugin(mockRuntime);
+    // Mock posAtCoords to return valid position
+    jest.spyOn(view, 'posAtCoords').mockReturnValue({ pos: 10, inside: 10 });
+  });
+
+  it('should call openFloatingMenu on Alt + Right Click', () => {
+    addAltRightClickHandler(view, plugin);
+
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: true,
+      clientX: 100,
+      clientY: 200,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    const preventSpy = jest.spyOn(event, 'preventDefault');
+    const stopSpy = jest.spyOn(event, 'stopPropagation');
+
+    view.dom.dispatchEvent(event);
+
+    expect(preventSpy).toHaveBeenCalled();
+    expect(stopSpy).toHaveBeenCalled();
+  });
+
+  it('should not call preventDefault when Alt is not pressed', () => {
+    addAltRightClickHandler(view, plugin);
+
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: false,
+      clientX: 100,
+      clientY: 200,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    const preventSpy = jest.spyOn(event, 'preventDefault');
+
+    view.dom.dispatchEvent(event);
+
+    expect(preventSpy).not.toHaveBeenCalled();
+  });
+
+  it('should not proceed when posAtCoords returns null', () => {
+    jest.spyOn(view, 'posAtCoords').mockReturnValue(null);
+    addAltRightClickHandler(view, plugin);
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: true,
+      clientX: 100,
+      clientY: 200,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    view.dom.dispatchEvent(event);
+
+    // Should still prevent default and stop propagation
+    expect(event.defaultPrevented).toBe(true);
+  });
+});
+
+describe('Plugin state init - Coverage', () => {
+  it('should initialize with decorations', () => {
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+    });
+
+    const plugin = new FloatingMenuPlugin(mockRuntime);
+    const state = EditorState.create({ schema, plugins: [plugin] });
+    const pluginState = plugin.getState(state);
+    expect(pluginState).toHaveProperty('decorations');
+    expect(pluginState?.decorations).toBeInstanceOf(DecorationSet);
+  });
+});
+
+describe('Props decorations function - Coverage', () => {
+  it('should return decorations from plugin state', () => {
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+    });
+
+    const plugin = new FloatingMenuPlugin(mockRuntime);
+    const state = EditorState.create({ schema, plugins: [plugin] });
+    const decorationsFn = plugin.spec.props?.decorations;
+    const decorations = decorationsFn?.call(plugin, state);
+    expect(decorations).toBeInstanceOf(DecorationSet);
+  });
+});
+
+describe('Event Target and Element Handling', () => {
+  it('should handle getClosestHTMLElement with deeply nested elements', () => {
+    const outer = document.createElement('div');
+    outer.className = 'outer';
+    const middle = document.createElement('div');
+    const inner = document.createElement('span');
+    middle.appendChild(inner);
+    outer.appendChild(middle);
+    const result = getClosestHTMLElement(inner, '.outer');
+    expect(result).toBe(outer);
+  });
+
+  it('should return null when selector does not match any parent', () => {
+    const div = document.createElement('div');
+    const span = document.createElement('span');
+    div.appendChild(span);
+    const result = getClosestHTMLElement(span, '.nonexistent');
+    expect(result).toBeNull();
+  });
+});
+
+describe('Pointerdown Event Handler - Complete Coverage', () => {
+  let plugin: FloatingMenuPlugin;
+  let view: EditorView;
+  let schema: Schema;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+
+    plugin = new FloatingMenuPlugin(mockRuntime);
+    const state = EditorState.create({ schema, plugins: [plugin] });
+    view = new EditorView(document.createElement('div'), { state });
+  });
+
+  it('should not trigger when clicking on non-float-icon element', () => {
+    plugin.spec.view!(view);
+
+    const div = document.createElement('div');
+    div.className = 'some-other-element';
+    view.dom.appendChild(div);
+
+    const event = new MouseEvent('pointerdown', { bubbles: true });
+    Object.defineProperty(event, 'target', { value: div, writable: false });
+
+    div.dispatchEvent(event);
+
+    expect(licitCommands.createPopUp).not.toHaveBeenCalled();
+  });
+
+  it('should add popup-open class to wrapper', async () => {
+    const wrapper = document.createElement('div');
+    wrapper.className = 'pm-hamburger-wrapper';
+    const hamburger = document.createElement('span');
+    hamburger.className = 'float-icon';
+    hamburger.dataset.pos = '5';
+    wrapper.appendChild(hamburger);
+    view.dom.appendChild(wrapper);
+
+    plugin.spec.view!(view);
+
+    const event = new MouseEvent('pointerdown', { bubbles: true });
+    hamburger.dispatchEvent(event);
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(wrapper.classList.contains('popup-open')).toBe(true);
+  });
+});
+
+describe('Document Click Handler - Complete Coverage', () => {
+  let plugin: FloatingMenuPlugin;
+  let view: EditorView;
+
+  beforeEach(() => {
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: { content: 'text*', group: 'block', toDOM: () => ['p', 0] },
+        text: { group: 'inline' },
+      },
+    });
+
+    plugin = new FloatingMenuPlugin(mockRuntime);
+    const state = EditorState.create({ schema, plugins: [plugin] });
+    view = new EditorView(document.createElement('div'), { state });
+  });
+
+  it('should not close popup when clicking inside context-menu', () => {
+    const closeSpy = jest.fn();
+    plugin._popUpHandle = { close: closeSpy, update: jest.fn() };
+    plugin.spec.view!(view);
+
+    const contextMenu = document.createElement('div');
+    contextMenu.className = 'context-menu';
+    document.body.appendChild(contextMenu);
+
+    const event = new MouseEvent('click', { bubbles: true });
+    Object.defineProperty(event, 'target', { value: contextMenu, writable: false });
+
+    document.dispatchEvent(event);
+
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    document.body.removeChild(contextMenu);
+  });
+
+  it('should not close popup when clicking on float-icon', () => {
+    const closeSpy = jest.fn();
+    plugin._popUpHandle = { close: closeSpy, update: jest.fn() };
+    plugin.spec.view!(view);
+
+    const floatIcon = document.createElement('span');
+    floatIcon.className = 'float-icon';
+    document.body.appendChild(floatIcon);
+
+    const event = new MouseEvent('click', { bubbles: true });
+    Object.defineProperty(event, 'target', { value: floatIcon, writable: false });
+
+    document.dispatchEvent(event);
+
+    expect(closeSpy).not.toHaveBeenCalled();
+
+    document.body.removeChild(floatIcon);
+  });
+
+  it('should not throw error when _popUpHandle is null', () => {
+    plugin._popUpHandle = null;
+    plugin.spec.view!(view);
+
+    const outsideElement = document.createElement('div');
+    document.body.appendChild(outsideElement);
+
+    const event = new MouseEvent('click', { bubbles: true });
+    Object.defineProperty(event, 'target', { value: outsideElement, writable: false });
+
+    expect(() => document.dispatchEvent(event)).not.toThrow();
+
+    document.body.removeChild(outsideElement);
+  });
+});
+
+describe('Context Menu Handler - View Editability', () => {
+  let plugin: FloatingMenuPlugin;
+  let view: EditorView;
+
+  beforeEach(() => {
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: { content: 'text*', group: 'block', toDOM: () => ['p', 0] },
+        text: { group: 'inline' },
+      },
+    });
+
+    plugin = new FloatingMenuPlugin(mockRuntime);
+    const state = EditorState.create({ schema, plugins: [plugin] });
+    view = new EditorView(document.createElement('div'), { state });
+  });
+
+  it('should not open menu when view is not editable', () => {
+    view.editable = false;
+    plugin.spec.view!(view);
+
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: true,
+      clientX: 100,
+      clientY: 200,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    const preventSpy = jest.spyOn(event, 'preventDefault');
+
+    view.dom.dispatchEvent(event);
+
+    // Should not prevent default when not editable
+    expect(preventSpy).not.toHaveBeenCalled();
+  });
+
+  it('should open menu when view is editable', async () => {
+    view.editable = true;
+    plugin.spec.view!(view);
+
+    const event = new MouseEvent('contextmenu', {
+      button: 2,
+      altKey: true,
+      clientX: 100,
+      clientY: 200,
+      bubbles: true,
+      cancelable: true,
+    });
+
+    view.dom.dispatchEvent(event);
+
+    await new Promise(resolve => setTimeout(resolve, 0));
+
+    expect(event.defaultPrevented).toBe(true);
+  });
+});
+
+describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
+  beforeEach(() => {
+    jest.clearAllMocks();
+    (licitCommands.createPopUp as jest.Mock).mockImplementation(() => ({
+      close: jest.fn(),
+      update: jest.fn(),
+      props: {},
+    }));
+  });
+
+  it('apply(): returns mapped decorations when tr.docChanged is false (real mapping)', () => {
+    const plugin = new FloatingMenuPlugin(mockRuntime);
+
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+    });
+
+    const doc = schema.nodes.doc.createAndFill()!;
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+
+    // Create a transaction that does NOT change the document (no steps)
+    const tr = state.tr; // fresh transaction, docChanged === false initially
+    expect(tr.docChanged).toBe(false);
+
+    // Use a real DecorationSet so DecorationSet.prototype.map exists
+    const decoSet = DecorationSet.create(state.doc, []);
+    // Spy on DecorationSet.prototype.map to verify it is used via call
+    const mapSpy = jest.spyOn(DecorationSet.prototype, 'map');
+
+    const prevPluginState = {
+      decorations: decoSet,
+    };
+
+    const applyFn = plugin.spec.state?.apply;
+    expect(applyFn).toBeDefined();
+    if (!applyFn) throw new Error('Plugin apply function is undefined');
+
+    const output = applyFn(tr as unknown as Transaction, prevPluginState, state, state);
+
+    // map should be invoked (via prototype.map.call) or safe-guarded, and output should include decorations
+    expect(output).toBeDefined();
+    expect(output).toHaveProperty('decorations');
+    // restore spy
+    mapSpy.mockRestore();
+  });
+
+  it('showReferences: calls sliceManager.insertReference() then insertReference(view, id, source, docName)', async () => {
+    const plugin = new FloatingMenuPlugin(mockRuntime);
+
+    plugin.sliceManager = {
+      insertReference: jest.fn().mockResolvedValue({ id: 'slice-123', source: 'source-xyz' }),
+    } as unknown as FloatingMenuPlugin['sliceManager'];
+
+    // Spy CMPluginKey.get to return our plugin (safe and reliable)
+    const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
+      const schema = new Schema({
+        nodes: {
+          doc: { content: 'paragraph+' } as NodeSpec,
+          paragraph: {
+            content: 'text*',
+            parseDOM: [{ tag: 'p' }],
+            toDOM: () => ['p', 0],
+          } as NodeSpec,
+          text: {} as NodeSpec,
+        },
+      });
+    const state = EditorState.create({ schema });
+    const view = new EditorView(document.createElement('div'), { state });
+
+    // Provide docView meta so insertReference receives a doc name
+    (view as unknown as EditorView)['docView'] = { node: { attrs: { objectMetaData: { name: 'TestDoc' } } } };
+
+    await showReferences(view);
+
+    expect(plugin.sliceManager.insertReference).toHaveBeenCalled();
+    expect(insertReference).toHaveBeenCalledWith(view, 'slice-123', 'source-xyz', 'TestDoc');
+
+    cmGetSpy.mockRestore();
+  });
+
+  it('createInfoIconHandler / createCitationHandler call sliceManager methods when plugin present', () => {
+    const plugin = new FloatingMenuPlugin(mockRuntime);
+    plugin.sliceManager = {
+      addInfoIcon: jest.fn(),
+      addCitation: jest.fn(),
+    } as unknown as FloatingMenuPlugin['sliceManager'];
+
+    const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
+
+      const schema = new Schema({
+        nodes: {
+          doc: { content: 'paragraph+' } as NodeSpec,
+          paragraph: {
+            content: 'text*',
+            parseDOM: [{ tag: 'p' }],
+            toDOM: () => ['p', 0],
+          } as NodeSpec,
+          text: {} as NodeSpec,
+        },
+      });
+
+    const state = EditorState.create({ schema });
+    const view = new EditorView(document.createElement('div'), { state });
+
+    createInfoIconHandler(view);
+    createCitationHandler(view);
+
+    expect(plugin.sliceManager.addInfoIcon).toHaveBeenCalled();
+    expect(plugin.sliceManager.addCitation).toHaveBeenCalled();
+
+    cmGetSpy.mockRestore();
+  });
 });

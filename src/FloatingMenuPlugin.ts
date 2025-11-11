@@ -47,10 +47,10 @@ export class FloatingMenuPlugin extends Plugin {
           let decos = prev.decorations;
 
           if (!tr.docChanged) {
-            return { decorations: decos?.map(tr.mapping, tr.doc) };
+            return { decorations: decos ? DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc) : decos };
           }
 
-          decos = decos.map(tr.mapping, tr.doc);
+          decos = DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc);
 
           const requiresRescan =
             tr.steps.some((step) => {
@@ -81,21 +81,17 @@ export class FloatingMenuPlugin extends Plugin {
         getDocSlices.call(plugin, view);
 
         view.dom.addEventListener('pointerdown', (e) => {
-          const targetEl = (e.target as HTMLElement).closest(
-            '.float-icon'
-          ) as HTMLElement;
-          if (!targetEl) return;
+        const targetEl = getClosestHTMLElement(e.target, '.float-icon');
+        if (!targetEl) return;
 
-          e.preventDefault();
-          e.stopPropagation();
+        e.preventDefault();
+        e.stopPropagation();
 
-          const wrapper = targetEl.closest(
-            '.pm-hamburger-wrapper'
-          ) as HTMLElement;
-          wrapper?.classList.add('popup-open');
+        const wrapper = getClosestHTMLElement(targetEl, '.pm-hamburger-wrapper');
+        wrapper?.classList.add('popup-open');
 
-          const pos = Number(targetEl.dataset.pos);
-          openFloatingMenu(plugin, view, pos, targetEl);
+        const pos = Number(targetEl.dataset.pos);
+        openFloatingMenu(plugin, view, pos, targetEl);
         });
 
         // --- Alt + Right Click handler ---
@@ -182,7 +178,7 @@ export function copySelectionRich(
 
   navigator.clipboard
     .writeText(JSON.stringify(sliceJSON))
-    .then(() => { }) //console.log('Rich content copied')
+    .then(() => { })
     .catch((err) => console.error('Clipboard write failed', err));
   if (plugin._popUpHandle) {
     plugin._popUpHandle.update({
@@ -197,8 +193,8 @@ export function copySelectionRich(
 }
 
 export function createSliceObject(editorView: EditorView): SliceModel {
-  const instanceUrl = 'http://modusoperandi.com/editor/instance/';
-  const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';
+  const instanceUrl = 'http://modusoperandi.com/editor/instance/';   // NOSONAR - These are semantic IRIs
+  const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';   // NOSONAR - These are semantic IRIs
 
   const sliceModel: SliceModel = {
     name: '',
@@ -236,9 +232,9 @@ export function createSliceObject(editorView: EditorView): SliceModel {
   sliceModel.id = instanceUrl + uuidv4();
   sliceModel.ids = objectIds;
   sliceModel.from = objectIds.length > 0 ? objectIds[0] : '';
-  sliceModel.to = objectIds.length > 0 ? objectIds[objectIds.length - 1] : '';
+  sliceModel.to = objectIds.length > 0 ? objectIds.at(-1) : '';
 
-  const viewWithDocView = editorView as EditorView;
+  const viewWithDocView = editorView;
   sliceModel.source = viewWithDocView?.['docView']?.node?.attrs?.objectId;
   sliceModel.referenceType = referenceUrl;
 
@@ -264,7 +260,7 @@ export function copySelectionPlain(
 
   navigator.clipboard
     .writeText(text)
-    .then(() => { }) //console.log('Plain text copied!'))
+    .then(() => { })
     .catch((err) => console.error('Clipboard write failed:', err));
   if (plugin._popUpHandle?.close) {
     plugin._popUpHandle.close(null);
@@ -282,20 +278,17 @@ export async function pasteFromClipboard(
     const text = await navigator.clipboard.readText();
     let tr: Transaction;
 
-    try {
-      // Try parsing as JSON slice
+    if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
       const parsed = JSON.parse(text);
       const slice = Slice.fromJSON(view.state.schema, parsed);
       tr = view.state.tr.replaceSelection(slice);
-    } catch (jsonErr) {
-      // If not JSON, treat as plain text
+    } else {
       tr = view.state.tr.insertText(
         text,
         view.state.selection.from,
         view.state.selection.to
       );
     }
-
     view.dispatch(tr.scrollIntoView());
   } catch (err) {
     console.error('Clipboard paste failed:', err);
@@ -359,7 +352,7 @@ export async function pasteAsPlainText(
 
       const frag = slice.content;
       plainText = '';
-      frag.forEach((node) => {
+      frag.forEach((node) => { // NOSONAR not an iterable
         plainText += node.textContent + '\n';
       });
       plainText = plainText.trim();
@@ -404,7 +397,8 @@ export async function clipboardHasProseMirrorData(): Promise<boolean> {
 export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
 
-  doc?.forEach((node: Node, pos: number) => {
+  doc?.forEach( // NOSONAR not an iterable
+      (node: Node, pos: number) => {
     if (node.type.name !== 'paragraph') return;
     const wrapper = document.createElement('span');
     wrapper.className = 'pm-hamburger-wrapper';
@@ -436,7 +430,6 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         SliceMark.id = `slicemark-${uuidv4()}`;
         SliceMark.style.fontFamily = 'FontAwesome';
         SliceMark.innerHTML = '&#xf097';
-        // SliceMark.onclick = () => console.log('Slice deco clicked');
         SliceMark.onclick = () => { };
         container.appendChild(SliceMark);
       }
@@ -446,7 +439,7 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         const TagMark = document.createElement('span');
         TagMark.style.fontFamily = 'FontAwesome';
         TagMark.innerHTML = '&#xf02b;';
-        TagMark.onclick = () => { }; //console.log('Tag deco clicked');
+        TagMark.onclick = () => { };
         container.appendChild(TagMark);
       }
 
@@ -455,7 +448,7 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
         const CommentMark = document.createElement('span');
         CommentMark.style.fontFamily = 'FontAwesome';
         CommentMark.innerHTML = '&#xf075;';
-        CommentMark.onclick = () => { }; //console.log('Comment deco clicked');
+        CommentMark.onclick = () => { };
         container.appendChild(CommentMark);
       }
 
@@ -546,7 +539,7 @@ export function changeAttribute(_view: EditorView): void {
   if (!node) return; // early return if node does not exist
   let tr = _view.state.tr;
   const newattrs = { ...node.attrs };
-  const isDeco = { ...(newattrs.isDeco || {}) };
+  const isDeco = { ...newattrs.isDeco };
   isDeco.isSlice = true;
   newattrs.isDeco = isDeco;
   tr = tr.setNodeMarkup(from, undefined, newattrs);
@@ -597,4 +590,13 @@ export function createCitationHandler(view: EditorView): void {
   const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
   if (!plugin) return;
   plugin.sliceManager?.addCitation();
+}
+
+export function getClosestHTMLElement(
+  el: EventTarget | null,
+  selector: string
+): HTMLElement | null {
+  if (!(el instanceof Element)) return null;
+  const closest = el.closest(selector);
+  return closest instanceof HTMLElement ? closest : null;
 }

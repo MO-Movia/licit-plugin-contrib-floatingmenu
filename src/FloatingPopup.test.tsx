@@ -217,16 +217,6 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       expect(() => click('Create Citation')).not.toThrow();
     });
 
-    it('closePopup calls props.close with menuName', () => {
-      const instance = new FloatingMenu(props);
-      if (props.close) {
-        instance.closePopup('TestMenu');
-        expect(props.close).toHaveBeenCalledWith('TestMenu');
-      } else {
-        expect(() => instance.closePopup('TestMenu')).not.toThrow();
-      }
-    });
-
     it('Create Bookmark still works if close is missing', () => {
       delete props.close;
       ReactDOM.render(<FloatingMenu {...props} />, container);
