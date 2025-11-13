@@ -97,8 +97,8 @@ describe('createSliceManager', () => {
 
     const slices = await manager.getDocumentSlices(mockView);
 
-    await manager.addInfoIcon();
-    await manager.addCitation();
+    manager.addInfoIcon();
+    manager.addCitation();
     const slideModel = {
       id: '1',
       source: 'doc-1',

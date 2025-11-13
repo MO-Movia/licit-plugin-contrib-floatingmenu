@@ -9,8 +9,9 @@ import { FloatingMenu } from './FloatingPopup';
 import * as Plugin from './FloatingMenuPlugin';
 import { Node as ProseMirrorNode } from 'prosemirror-model';
 import { schema as basicSchema } from 'prosemirror-schema-basic';
-import { FloatRuntime, SliceModel } from './model';
+import { FloatRuntime } from './model';
 import { PopUpHandle } from '@modusoperandi/licit-ui-commands';
+import type * as FloatingMenuPluginModule from './FloatingMenuPlugin';
 
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
   createPopUp: jest.fn(),
@@ -39,15 +40,14 @@ jest.mock('./slice', () => ({
 }));
 
 // Keep the real plugin module but override createNewSlice with a mock for UI tests
-const mockCreateNewSlice = jest.fn();
-const mockInsertReference = jest.fn();
+
 jest.mock('./FloatingMenuPlugin', () => {
-  const actual = jest.requireActual('./FloatingMenuPlugin');
+  const actual = jest.requireActual<typeof FloatingMenuPluginModule>('./FloatingMenuPlugin');
   return {
     ...actual,
-    createNewSlice: (...args: SliceModel[]) => mockCreateNewSlice(...args),
-    showReferences: (...args: SliceModel[]) => mockInsertReference(...args),
-  };
+    createNewSlice: jest.fn(),
+    showReferences: jest.fn(),
+  } satisfies Partial<typeof FloatingMenuPluginModule>;
 });
 
 // Mock insertReference (used in pasteAsReference)
@@ -90,8 +90,8 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         paragraphPos: 1,
         editorState: {
           selection: {
-            $from: {before: () => 1, depth: 1},
-            $to: {before: () => 1, depth: 1},
+            $from: { before: () => 1, depth: 1 },
+            $to: { before: () => 1, depth: 1 },
             empty: false,
           },
         },
@@ -108,6 +108,8 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         pasteHandler: jest.fn(),
         pastePlainHandler: jest.fn(),
         pasteAsReferenceHandler: jest.fn(),
+        createNewSliceHandler: jest.fn(),
+        showReferencesHandler: jest.fn(),
         pasteAsReferenceEnabled: true,
         close: jest.fn(),
       };
@@ -130,7 +132,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
 
     function click(label: string) {
       const btn = getButton(label);
-      btn.dispatchEvent(new MouseEvent('click', {bubbles: true}));
+      btn.dispatchEvent(new MouseEvent('click', { bubbles: true }));
     }
 
     it('renders all buttons', () => {
@@ -162,16 +164,12 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
 
     it('calls createNewSlice + close', () => {
       click('Create Bookmark');
-      expect(mockCreateNewSlice).toHaveBeenCalledWith(props.editorView);
-      expect(props.close).toHaveBeenCalledWith('Create Slice');
+      expect(props.createNewSliceHandler).toHaveBeenCalled();
     });
-
     it('calls insertReference + close', () => {
       click('Insert Reference');
-      expect(mockInsertReference).toHaveBeenCalledWith(props.editorView);
-      expect(props.close).toHaveBeenCalledWith('Insert reference');
+      expect(props.showReferencesHandler).toHaveBeenCalled();
     });
-
     it('calls copy/paste handlers (button wiring)', () => {
       click('Copy');
       click('Copy Without Formatting');
@@ -216,7 +214,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       delete props.close;
       ReactDOM.render(<FloatingMenu {...props} />, container);
       click('Create Bookmark');
-      expect(mockCreateNewSlice).toHaveBeenCalledWith(props.editorView);
+      expect(props.createNewSliceHandler).toHaveBeenCalled();
     });
 
     it('Copy button works even if editorState.selection.empty is true', () => {
@@ -270,13 +268,29 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       docNode = basicSchema.node('doc', null, [
         basicSchema.node(
           'paragraph',
-          {objectId: 'a1', isDeco: {isSlice: true}},
+          { objectId: 'a1', isDeco: { isSlice: true } },
           [basicSchema.text('First paragraph')]
         ),
         basicSchema.node('paragraph', null, [
           basicSchema.text('Second paragraph'),
         ]),
       ]);
+      const addSliceToListMock = jest.fn();
+      const insertReferenceMock = jest.fn();
+      const addInfoIconMock = jest.fn();
+      const addCitationMock = jest.fn();
+      const plugin = {
+        sliceManager: {
+          addSliceToList: addSliceToListMock,
+          insertReference: insertReferenceMock,
+          addInfoIcon: addInfoIconMock,
+          addCitation: addCitationMock,
+        },
+        _urlConfig: {
+          instanceUrl: 'http://modusoperandi.com/editor/instance/',
+          referenceUrl: 'http://modusoperandi.com/ont/document#Reference_nodes',
+        },
+      };
 
       mockView = {
         focus: jest.fn(),
@@ -295,22 +309,26 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
           },
           doc: docNode,
           tr: {
-            insertText: jest.fn(() => ({scrollIntoView: () => ({})})),
-            replaceSelection: jest.fn(() => ({scrollIntoView: () => ({})})),
+            insertText: jest.fn(() => ({ scrollIntoView: () => ({}) })),
+            replaceSelection: jest.fn(() => ({ scrollIntoView: () => ({}) })),
           },
+          config: { pluginsByKey: { 'floating-menu$': plugin } },
         },
         dispatch: jest.fn(),
         runtime: {
-          createSlice: jest.fn((m) => Promise.resolve({ok: true, model: m})),
+          createSlice: jest.fn((m) => Promise.resolve({ ok: true, model: m })),
         },
         hasFocus: jest.fn(() => true),
         docView: {
-          node: {attrs: {objectId: 'doc-x', objectMetaData: {name: 'MyDoc'}}},
+          node: { attrs: { objectId: 'doc-x', objectMetaData: { name: 'MyDoc' } } },
         },
       };
-
-      mockPopUpHandle = {close: jest.fn(), update: jest.fn()};
-      pluginInstance = new Plugin.FloatingMenuPlugin({} as FloatRuntime);
+      const urlConfig = {
+        instanceUrl: 'http://modusoperandi.com/editor/instance/',
+        referenceUrl: 'http://modusoperandi.com/ont/document#Reference_nodes',
+      }
+      mockPopUpHandle = { close: jest.fn(), update: jest.fn() };
+      pluginInstance = new Plugin.FloatingMenuPlugin({} as FloatRuntime, urlConfig);
       pluginInstance._popUpHandle = mockPopUpHandle;
       pluginInstance._view = mockView;
     });
@@ -324,24 +342,24 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       expect(slice.name).toBeDefined();
     });
 
-    it('copySelectionRich writes to clipboard and updates+closes popup (assert on local mock)', async () => {
+    it('copySelectionRich writes to clipboard and updates+closes popup (assert on local mock)', () => {
       const writeSpy = jest
         .spyOn(navigator.clipboard, 'writeText')
         .mockResolvedValue(undefined);
 
-      await Plugin.copySelectionRich(mockView, pluginInstance);
+      Plugin.copySelectionRich(mockView, pluginInstance);
 
       expect(writeSpy).toHaveBeenCalled();
       expect(mockPopUpHandle.update).toHaveBeenCalled();
       expect(mockPopUpHandle.close).toHaveBeenCalled();
     });
 
-    it('copySelectionPlain writes plain text to clipboard and closes popup', async () => {
+    it('copySelectionPlain writes plain text to clipboard and closes popup', () => {
       const writeSpy = jest
         .spyOn(navigator.clipboard, 'writeText')
         .mockResolvedValue(undefined);
 
-      await Plugin.copySelectionPlain(mockView, pluginInstance);
+      Plugin.copySelectionPlain(mockView, pluginInstance);
 
       expect(writeSpy).toHaveBeenCalledWith(
         'First paragraph\nSecond paragraph'
@@ -360,10 +378,10 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     });
 
     it('pasteAsReference: reads sliceModel and calls runtime.createSlice + insertReference', async () => {
-      const sliceModel = {id: 'slice-1', source: 'doc-x'};
+      const sliceModel = { id: 'slice-1', source: 'doc-x' };
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({sliceModel}));
+        .mockResolvedValue(JSON.stringify({ sliceModel }));
 
       await Plugin.pasteAsReference(mockView, pluginInstance);
 
@@ -373,7 +391,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('pasteAsPlainText: when clipboard contains JSON with non-slice data falls back and dispatches', async () => {
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({foo: 'bar'}));
+        .mockResolvedValue(JSON.stringify({ foo: 'bar' }));
 
       await Plugin.pasteAsPlainText(mockView, pluginInstance);
 
@@ -384,7 +402,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('clipboardHasProseMirrorData: true for correct JSON, false otherwise', async () => {
       jest
         .spyOn(navigator.clipboard, 'readText')
-        .mockResolvedValue(JSON.stringify({content: []}));
+        .mockResolvedValue(JSON.stringify({ content: [] }));
       const yes = await Plugin.clipboardHasProseMirrorData();
       expect(yes).toBe(true);
 

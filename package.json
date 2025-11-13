@@ -71,5 +71,9 @@
          "parser": "babylon",
          "style": "module-grouping"
       }
+   },
+   "dependencies": {
+      "react-dom": "^18.3.1",
+      "uuid": "^13.0.0"
    }
 }

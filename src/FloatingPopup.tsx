@@ -5,7 +5,6 @@
 
 import React from 'react';
 import { CustomButton } from '@modusoperandi/licit-ui-commands';
-import { createNewSlice,showReferences } from './FloatingMenuPlugin';
 import { EditorView } from 'prosemirror-view';
 import {EditorState} from 'prosemirror-state';
 
@@ -21,6 +20,8 @@ interface FloatingMenuProps {
   pasteHandler: () => void;
   pasteAsReferenceHandler: () => void;
   pastePlainHandler: () => void;
+  createNewSliceHandler: () => void;
+  showReferencesHandler: () => void;
   close?: (menuName: string) => void;
 }
 
@@ -78,9 +79,13 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
             }}
           />
 
-          <CustomButton label="Create Bookmark" onClick={() => { createNewSlice(this.props.editorView); this.props.close?.('Create Slice'); }}
+          <CustomButton label="Create Bookmark" onClick={() => {
+            this.props.createNewSliceHandler();
+          }}
           />
-            <CustomButton label="Insert Reference" onClick={() => { showReferences(this.props.editorView); this.props.close?.('Insert reference'); }}
+          <CustomButton label="Insert Reference" onClick={() => {
+            this.props.showReferencesHandler();
+          }}
           />
         </div>
       </div>
