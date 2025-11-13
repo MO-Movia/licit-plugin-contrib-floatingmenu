@@ -1,4 +1,9 @@
-// A generic Floating Menu ProseMirror Plugin
+/**
+ * @license MIT
+ * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
+ * @file A generic Floating Menu ProseMirror Plugin
+ */
+
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { Node, Schema, Slice } from 'prosemirror-model';
 import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
@@ -25,11 +30,17 @@ interface SliceModel {
   ids: string[];
 }
 
+interface UrlConfig {
+  instanceUrl?: string;
+  referenceUrl?: string;
+}
+
 export class FloatingMenuPlugin extends Plugin {
   _popUpHandle: PopUpHandle | null = null;
   _view: EditorView | null = null;
+  _urlConfig: UrlConfig | null = null;
   sliceManager: ReturnType<typeof createSliceManager>;
-  constructor(sliceRuntime: FloatRuntime) {
+  constructor(sliceRuntime: FloatRuntime, urlConfig: UrlConfig = {}) {
     const sliceManager = createSliceManager(sliceRuntime);
     super({
       key: CMPluginKey,
@@ -43,7 +54,7 @@ export class FloatingMenuPlugin extends Plugin {
           let decos = prev.decorations;
 
           if (!tr.docChanged) {
-            return { decorations: decos ? DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc) : decos };
+            return {  decorations: decos ? DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc) : decos };
           }
 
           decos = DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc);
@@ -67,27 +78,29 @@ export class FloatingMenuPlugin extends Plugin {
       },
       props: {
         decorations(state) {
-          return (this as FloatingMenuPlugin).getState(state)?.decorations;
+          const pluginState = (this as FloatingMenuPlugin).getState(state);
+          return pluginState?.decorations as DecorationSet | undefined;
         },
       },
       view: (view) => {
         const plugin = this as FloatingMenuPlugin;
         plugin._view = view;
         plugin.sliceManager = sliceManager;
+        plugin._urlConfig = urlConfig;
         getDocSlices.call(plugin, view);
 
         view.dom.addEventListener('pointerdown', (e) => {
-        const targetEl = getClosestHTMLElement(e.target, '.float-icon');
-        if (!targetEl) return;
+          const targetEl = getClosestHTMLElement(e.target, '.float-icon');
+          if (!targetEl) return;
 
-        e.preventDefault();
-        e.stopPropagation();
+          e.preventDefault();
+          e.stopPropagation();
 
-        const wrapper = getClosestHTMLElement(targetEl, '.pm-hamburger-wrapper');
-        wrapper?.classList.add('popup-open');
+          const wrapper = getClosestHTMLElement(targetEl, '.pm-hamburger-wrapper');
+          wrapper?.classList.add('popup-open');
 
-        const pos = Number(targetEl.dataset.pos);
-        openFloatingMenu(plugin, view, pos, targetEl);
+          const pos = Number(targetEl.dataset.pos);
+          openFloatingMenu(plugin, view, pos, targetEl);
         });
 
         // --- Alt + Right Click handler ---
@@ -163,9 +176,9 @@ export function copySelectionRich(
 }
 
 export function createSliceObject(editorView: EditorView): SliceModel {
-  const instanceUrl = 'http://modusoperandi.com/editor/instance/';   // NOSONAR - These are semantic IRIs
-  const referenceUrl = 'http://modusoperandi.com/ont/document#Reference_nodes';   // NOSONAR - These are semantic IRIs
-
+  const plugin = CMPluginKey.get(editorView.state) as FloatingMenuPlugin;
+  const referenceUrl = plugin?._urlConfig?.referenceUrl;
+  const instanceUrl = plugin?._urlConfig?.instanceUrl;
   const sliceModel: SliceModel = {
     name: '',
     description: '',
@@ -368,63 +381,63 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   const decorations: Decoration[] = [];
 
   doc?.forEach( // NOSONAR not an iterable
-      (node: Node, pos: number) => {
-    if (node.type.name !== 'paragraph') return;
-    const wrapper = document.createElement('span');
-    wrapper.className = 'pm-hamburger-wrapper';
+    (node: Node, pos: number) => {
+      if (node.type.name !== 'paragraph') return;
+      const wrapper = document.createElement('span');
+      wrapper.className = 'pm-hamburger-wrapper';
 
-    const hamburger = document.createElement('span');
-    hamburger.className = 'float-icon fa fa-bars';
-    hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
-    hamburger.dataset.pos = String(pos);
+      const hamburger = document.createElement('span');
+      hamburger.className = 'float-icon fa fa-bars';
+      hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
+      hamburger.dataset.pos = String(pos);
 
-    wrapper.appendChild(hamburger);
+      wrapper.appendChild(hamburger);
 
-    decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
-    const decoFlags = node.attrs?.isDeco;
-    if (!decoFlags) return;
-    if (decoFlags.isSlice || decoFlags.isTag || decoFlags.isComment) {
-      // --- Container for gutter marks ---
-      const container = document.createElement('span');
-      container.style.position = 'absolute';
-      container.style.left = '27px';
-      container.style.display = 'inline-flex';
-      container.style.gap = '6px';
-      container.style.alignItems = 'center';
-      container.contentEditable = 'false';
-      container.style.userSelect = 'none';
+      decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
+      const decoFlags = node.attrs?.isDeco;
+      if (!decoFlags) return;
+      if (decoFlags.isSlice || decoFlags.isTag || decoFlags.isComment) {
+        // --- Container for gutter marks ---
+        const container = document.createElement('span');
+        container.style.position = 'absolute';
+        container.style.left = '27px';
+        container.style.display = 'inline-flex';
+        container.style.gap = '6px';
+        container.style.alignItems = 'center';
+        container.contentEditable = 'false';
+        container.style.userSelect = 'none';
 
-      // --- Slice ---
-      if (decoFlags.isSlice) {
-        const SliceMark = document.createElement('span');
-        SliceMark.id = `slicemark-${uuidv4()}`;
-        SliceMark.style.fontFamily = 'FontAwesome';
-        SliceMark.innerHTML = '&#xf097';
-        SliceMark.onclick = () => { };
-        container.appendChild(SliceMark);
+        // --- Slice ---
+        if (decoFlags.isSlice) {
+          const SliceMark = document.createElement('span');
+          SliceMark.id = `slicemark-${uuidv4()}`;
+          SliceMark.style.fontFamily = 'FontAwesome';
+          SliceMark.innerHTML = '&#xf097';
+          SliceMark.onclick = () => { };
+          container.appendChild(SliceMark);
+        }
+
+        // --- Tag ---
+        if (decoFlags.isTag) {
+          const TagMark = document.createElement('span');
+          TagMark.style.fontFamily = 'FontAwesome';
+          TagMark.innerHTML = '&#xf02b;';
+          TagMark.onclick = () => { };
+          container.appendChild(TagMark);
+        }
+
+        // --- Comment ---
+        if (decoFlags.isComment) {
+          const CommentMark = document.createElement('span');
+          CommentMark.style.fontFamily = 'FontAwesome';
+          CommentMark.innerHTML = '&#xf075;';
+          CommentMark.onclick = () => { };
+          container.appendChild(CommentMark);
+        }
+
+        decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
       }
-
-      // --- Tag ---
-      if (decoFlags.isTag) {
-        const TagMark = document.createElement('span');
-        TagMark.style.fontFamily = 'FontAwesome';
-        TagMark.innerHTML = '&#xf02b;';
-        TagMark.onclick = () => { };
-        container.appendChild(TagMark);
-      }
-
-      // --- Comment ---
-      if (decoFlags.isComment) {
-        const CommentMark = document.createElement('span');
-        CommentMark.style.fontFamily = 'FontAwesome';
-        CommentMark.innerHTML = '&#xf075;';
-        CommentMark.onclick = () => { };
-        container.appendChild(CommentMark);
-      }
-
-      decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
-    }
-  });
+    });
   return DecorationSet.create(state.doc, decorations);
 }
 
@@ -457,6 +470,8 @@ export function openFloatingMenu(
         pastePlainHandler: () => pasteAsPlainText(view, plugin),
         createInfoIconHandler: () => createInfoIconHandler(view),
         createCitationHandler: () => createCitationHandler(view),
+        createNewSliceHandler: () => createNewSlice(view),
+        showReferencesHandler: () => showReferences(view),
       },
       {
         anchor: anchorEl || view.dom,
@@ -472,7 +487,7 @@ export function openFloatingMenu(
         },
       }
     );
-  });
+  }).catch(console.error);
 }
 
 export function addAltRightClickHandler(
@@ -532,7 +547,7 @@ export function createNewSlice(view: EditorView): void {
     });
 }
 
-export async function showReferences(view: EditorView): Promise<void> {
+export function showReferences(view: EditorView): Promise<void> {
   const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
   if (!plugin) return;
   plugin.sliceManager
