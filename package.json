@@ -34,7 +34,9 @@
       "react": "^18.0.0"
    },
    "dependencies": {
-      "font-awesome": "^4.7.0"
+      "font-awesome": "^4.7.0",
+      "react-dom": "^18.3.1",
+      "uuid": "^13.0.0"
    },
    "devDependencies": {
       "@cfaester/enzyme-adapter-react-18": "^0.8.0",
@@ -71,9 +73,5 @@
          "parser": "babylon",
          "style": "module-grouping"
       }
-   },
-   "dependencies": {
-      "react-dom": "^18.3.1",
-      "uuid": "^13.0.0"
-   }
+   }  
 }
