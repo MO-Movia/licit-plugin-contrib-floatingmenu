@@ -10,8 +10,6 @@ import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
 import {
   createPopUp,
   PopUpHandle,
-  atAnchorBottomLeft,
-  atAnchorTopRight,
   Rect
 } from '@modusoperandi/licit-ui-commands';
 import { FloatingMenu } from './FloatingPopup';
@@ -243,10 +241,9 @@ export function createSliceObject(editorView: EditorView): SliceModel {
   });
 
   paragraphEntries.sort((a, b) => a.pos - b.pos);
-
   const objectIds = paragraphEntries
     .filter(entry => entry.id !== undefined)
-    .map(entry => entry.id as string);
+    .map(entry => entry.id);
 
   const firstParagraphText = paragraphEntries.find(entry => entry.text)?.text ?? '';
 
@@ -402,8 +399,7 @@ export async function pasteAsPlainText(
 export async function clipboardHasData(): Promise<boolean> {
   try {
     const text = await navigator.clipboard.readText();
-    if (!text) return false;
-    return true;
+    return !!text;
   } catch {
     return false;
   }
@@ -584,6 +580,9 @@ export function openFloatingMenu(
           },
         }
       );
+    })
+    .catch(err => {
+      console.error('Failed to check clipboard data:', err);
     });
 }
 
