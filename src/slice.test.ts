@@ -1,3 +1,8 @@
+/**
+ * @license MIT
+ * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
+ */
+
 import { createSliceManager } from './slice';
 import { EditorView } from 'prosemirror-view';
 import { EditorState, Transaction } from 'prosemirror-state';
@@ -92,8 +97,8 @@ describe('createSliceManager', () => {
 
     const slices = await manager.getDocumentSlices(mockView);
 
-    await manager.addInfoIcon();
-    await manager.addCitation();
+    manager.addInfoIcon();
+    manager.addCitation();
     const slideModel = {
       id: '1',
       source: 'doc-1',
