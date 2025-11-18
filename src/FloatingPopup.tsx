@@ -49,6 +49,7 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
 
     const enableCitationAndComment = isTextSelected;
     const enableTagAndInfoicon = inThisParagraph;
+    const enableCopy = !selection.empty;
 
     return (
       <div className="context-menu" role="menu" tabIndex={-1}>
@@ -64,8 +65,8 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
             onClick={this.props.createInfoIconHandler}
           />
 
-          <CustomButton disabled={!enableCitationAndComment} label="Copy" onClick={this.props.copyRichHandler} />
-          <CustomButton disabled={!enableCitationAndComment} label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
+          <CustomButton disabled={!enableCopy} label="Copy" onClick={this.props.copyRichHandler} />
+          <CustomButton disabled={!enableCopy} label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
 
           <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste" onClick={() => {
             this.props.pasteHandler();

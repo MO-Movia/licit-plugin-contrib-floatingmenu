@@ -222,9 +222,6 @@ export function createSliceObject(editorView: EditorView): SliceModel {
     ids: [],
   };
 
-  const objectIds: string[] = [];
-  let firstParagraphText: string | null = null;
-
   editorView.focus();
 
   const $from = editorView.state.selection.$from;
@@ -233,16 +230,25 @@ export function createSliceObject(editorView: EditorView): SliceModel {
   const from = $from.start($from.depth);
   const to = $to.end($to.depth);
 
-  editorView.state.doc.nodesBetween(from, to, (node) => {
+  const paragraphEntries: { pos: number; id?: string; text?: string }[] = [];
+
+  editorView.state.doc.nodesBetween(from, to, (node, pos) => {
     if (node.type.name === 'paragraph') {
-      if (!firstParagraphText && node.textContent?.trim()) {
-        firstParagraphText = node.textContent.trim();
-      }
-      if (node.attrs?.objectId) {
-        objectIds.push(node.attrs.objectId);
-      }
+      paragraphEntries.push({
+        pos,
+        id: node.attrs?.objectId,
+        text: node.textContent?.trim() || undefined,
+      });
     }
   });
+
+  paragraphEntries.sort((a, b) => a.pos - b.pos);
+
+  const objectIds = paragraphEntries
+    .filter(entry => entry.id !== undefined)
+    .map(entry => entry.id as string);
+
+  const firstParagraphText = paragraphEntries.find(entry => entry.text)?.text ?? '';
 
   sliceModel.id = instanceUrl + uuidv4();
   sliceModel.ids = objectIds;
@@ -337,9 +343,10 @@ export async function pasteAsReference(
     }
     insertReference(
       view,
-      sliceModel.from,
+      val.id,
       val.source,
-      view['docView']?.node?.attrs?.objectMetaData?.name
+      view['docView']?.node?.attrs?.objectMetaData?.name,
+      val.from
     );
   } catch (err) {
     console.error('Failed to paste content or create slice:', err);
@@ -542,59 +549,42 @@ export function openFloatingMenu(
     plugin._popUpHandle = null;
   }
 
-  // Delay actual opening to avoid the "same click closes it" race
-  setTimeout(() => {
-    Promise.all([clipboardHasProseMirrorData(), clipboardHasData()]).then(
-      ([hasPM, clipboardHasData]) => {
-        const popupHandle = createPopUp(
-      FloatingMenu,
-      {
-        editorState: view.state,
-        editorView: view,
-        paragraphPos: pos,
-        pasteAsReferenceEnabled: hasPM,
-            enablePasteAsPlainText: clipboardHasData,
-        copyRichHandler: () => copySelectionRich(view, plugin),
-        copyPlainHandler: () => copySelectionPlain(view, plugin),
-        pasteHandler: () => pasteFromClipboard(view, plugin),
-        pasteAsReferenceHandler: () => pasteAsReference(view, plugin),
-        pastePlainHandler: () => pasteAsPlainText(view, plugin),
-        createInfoIconHandler: () => createInfoIconHandler(view),
-        createCitationHandler: () => createCitationHandler(view),
-        createNewSliceHandler: () => createNewSlice(view),
-        showReferencesHandler: () => showReferences(view),
-      },
-      {
-        anchor: anchorEl || view.dom,
-        contextPos: contextPos,
-            position: positionAboveOrBelow,
-        autoDismiss: false,
-        onClose: () => {
-          plugin._popUpHandle = null;
-          // Remove 'popup-open' class if anchor is a hamburger wrapper
-          anchorEl
-            ?.closest('.pm-hamburger-wrapper')
-            ?.classList.remove('popup-open');
+  // Determine if clipboard has ProseMirror data
+  Promise.all([clipboardHasProseMirrorData(), clipboardHasData()])
+    .then(([hasPM, clipboardHasData]) => {
+      plugin._popUpHandle = createPopUp(
+        FloatingMenu,
+        {
+          editorState: view.state,
+          editorView: view,
+          paragraphPos: pos,
+          pasteAsReferenceEnabled: hasPM,
+          enablePasteAsPlainText: clipboardHasData,
+          copyRichHandler: () => copySelectionRich(view, plugin),
+          copyPlainHandler: () => copySelectionPlain(view, plugin),
+          pasteHandler: () => pasteFromClipboard(view, plugin),
+          pasteAsReferenceHandler: () => pasteAsReference(view, plugin),
+          pastePlainHandler: () => pasteAsPlainText(view, plugin),
+          createInfoIconHandler: () => createInfoIconHandler(view),
+          createCitationHandler: () => createCitationHandler(view),
+          createNewSliceHandler: () => createNewSlice(view),
+          showReferencesHandler: () => showReferences(view),
         },
-      }
-    );
-        plugin._popUpHandle = popupHandle;
-        setTimeout(() => {
-          const listener = (ev: PointerEvent) => {
-            const popupEl = document.querySelector('.context-menu') as HTMLElement | null;
-            const target = ev.target as unknown as globalThis.Node | null;
-            const insidePopup = popupEl?.contains(target);
-            const insideAnchor = anchorEl?.contains(target);
-            if (!insidePopup && !insideAnchor) {
-              popupHandle.close(null);
-              document.removeEventListener('pointerdown', listener, true);
-            }
-          };
-          document.addEventListener('pointerdown', listener, true);
-        }, 200); // wait for 200ms to fully ignore the opening click
-      }
-    );
-  }, 0);
+        {
+          anchor: anchorEl || view.dom,
+          contextPos: contextPos,
+          position: positionAboveOrBelow,
+          autoDismiss: false,
+          onClose: () => {
+            plugin._popUpHandle = null;
+            // Remove 'popup-open' class if anchor is a hamburger wrapper
+            anchorEl
+              ?.closest('.pm-hamburger-wrapper')
+              ?.classList.remove('popup-open');
+          },
+        }
+      );
+    });
 }
 
 export function addAltRightClickHandler(
@@ -664,7 +654,8 @@ export function showReferences(view: EditorView): Promise<void> {
         view,
         val.id,
         val.source,
-        view['docView']?.node?.attrs?.objectMetaData?.name
+        view['docView']?.node?.attrs?.objectMetaData?.name,
+        val.from
       );
     })
     .catch((err) => {
