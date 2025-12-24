@@ -31,6 +31,7 @@ interface SliceModel {
   ids: string[];
 }
 export const KEY_COPY = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-c');
+export const KEY_CUT = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-x');
 export const KEY_PASTE = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-v');
 export const KEY_PASTE_REF = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-Alt-v');
 
@@ -140,31 +141,38 @@ export class FloatingMenuPlugin extends Plugin {
     });
   }
 
-public initKeyCommands(): Plugin[] {
-  return createKeyMapPlugin([
-    {
-      map: {
-        [KEY_COPY.common]: (_state, _dispatch, view) =>
-          copySelectionRich(view, this),
+  public initKeyCommands(): Plugin[] {
+    return createKeyMapPlugin([
+      {
+        map: {
+          [KEY_COPY.common]: (_state, _dispatch, view) =>
+            copySelectionRich(view, this),
+        },
+        name: 'CopySlicePluginKeyCommands',
       },
-      name: 'CopySlicePluginKeyCommands',
-    },
-    {
-      map: {
-        [KEY_PASTE.common]: (_state, _dispatch, view) =>
-          pasteFromClipboard(view, this),
+      {
+        map: {
+          [KEY_CUT.common]: (_state, _dispatch, view) =>
+            copySelectionRich(view, this),
+        },
+        name: 'CutSlicePluginKeyCommands',
       },
-      name: 'PasteSlicePluginKeyCommands',
-    },
-    {
-      map: {
-        [KEY_PASTE_REF.common]: (_state, _dispatch, view) =>
-          pasteAsReference(view, this),
+      {
+        map: {
+          [KEY_PASTE.common]: (_state, _dispatch, view) =>
+            pasteFromClipboard(view, this),
+        },
+        name: 'PasteSlicePluginKeyCommands',
       },
-      name: 'PasteReferencePluginKeyCommands',
-    },
-  ]);
-}
+      {
+        map: {
+          [KEY_PASTE_REF.common]: (_state, _dispatch, view) =>
+            pasteAsReference(view, this),
+        },
+        name: 'PasteReferencePluginKeyCommands',
+      },
+    ]);
+  }
 
   getEffectiveSchema(schema: Schema): Schema {
     return schema;
