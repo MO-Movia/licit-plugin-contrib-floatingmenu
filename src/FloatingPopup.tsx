@@ -5,12 +5,10 @@
 
 import React from 'react';
 import { CustomButton } from '@modusoperandi/licit-ui-commands';
-import { EditorView } from 'prosemirror-view';
 import {EditorState} from 'prosemirror-state';
 
 interface FloatingMenuProps {
   editorState: EditorState;
-  editorView: EditorView;
   paragraphPos: number;
   pasteAsReferenceEnabled: boolean;
   enablePasteAsPlainText: boolean;
@@ -23,7 +21,6 @@ interface FloatingMenuProps {
   pastePlainHandler: () => void;
   createNewSliceHandler: () => void;
   showReferencesHandler: () => void;
-  close?: (menuName: string) => void;
 }
 
 export class FloatingMenu extends React.PureComponent<FloatingMenuProps, FloatingMenuProps> {

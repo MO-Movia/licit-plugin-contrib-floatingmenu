@@ -4,4 +4,10 @@ module.exports = [
     strict: false,
     header: config.header.mit,
   }),
+    {
+    rules: {
+      //Include any rule overrides here!
+      '@typescript-eslint/no-unsafe-return': 'warn',
+    },
+  },
 ];

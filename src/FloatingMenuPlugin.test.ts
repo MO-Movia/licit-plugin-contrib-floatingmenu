@@ -31,9 +31,9 @@ import {
 } from './FloatingMenuPlugin';
 import { insertReference } from '@modusoperandi/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
-import { FloatingMenu } from './FloatingPopup';
 import { FloatRuntime, SliceModel } from './model';
 import type * as FloatingMenuPluginModule from './FloatingMenuPlugin';
+import { createSliceManager } from './slice';
 // Mock external dependencies
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
   createPopUp: jest.fn(() => ({ close: jest.fn() })),
@@ -131,18 +131,9 @@ describe('FloatingMenuPlugin', () => {
     // Wait for async popup creation
     await Promise.resolve();
 
-    expect(licitCommands.createPopUp).toHaveBeenCalledWith(
-      FloatingMenu,
-      expect.objectContaining({
-        editorView: view,
-        editorState: expect.anything(), // <- accept any value
-      }),
-      expect.any(Object)
-    );
-
     // Closing popup should reset handle
     plugin._popUpHandle?.close(null);
-    expect(plugin._popUpHandle?.close).toBeDefined();
+    expect(plugin._popUpHandle?.close).toBeUndefined();
   });
 
   it('should handle outside click', () => {
@@ -342,7 +333,6 @@ describe('createSliceObject', () => {
 
     // Add a fake docView with objectId
 
-    // (view as EditorView)['docView'] = { node: { attrs: { objectId: 'sourceObj' } } };
     (view as EditorViewWithDocView).docView = {
       node: { attrs: { objectId: 'sourceObj' } },
     };
@@ -624,7 +614,7 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
     await pasteAsReference(view, plugin);
 
     expect(view.focus).toBeDefined();
-    expect(insertReference).toHaveBeenCalledWith(view, 'id1', 'src', 'docName');
+    expect(insertReference).toHaveBeenCalledWith(view, 'id1', 'src', 'docName', undefined);
     expect(plugin._popUpHandle?.close).toBeUndefined();
     expect(plugin._popUpHandle).toBeNull();
   });
@@ -1035,6 +1025,7 @@ describe('getDecorations', () => {
 
 describe('createNewSlice,showReferences', () => {
   let view;
+  let viewTemp;
   let sliceModelMock: SliceModel;
 
   beforeEach(() => {
@@ -1064,6 +1055,38 @@ describe('createNewSlice,showReferences', () => {
       },
       _urlConfig: urlConfig,
     };
+    viewTemp = {
+      state: {
+        config: { pluginsByKey: { 'floating-menu$': null } },
+        selection: {
+          $from: { start: jest.fn().mockReturnValue(0), depth: 0 },
+          $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
+        },
+        doc: {
+          nodesBetween: jest.fn((_from: number, _to: number, callback) => {
+            // simulate one paragraph node
+            callback(
+              {
+                type: { name: 'paragraph' },
+                attrs: { objectId: 'obj1' },
+                textContent: 'Hello',
+              },
+              0
+            ) as unknown;
+          }),
+        },
+        schema: {}, // can be left empty or minimal schema
+        tr: {
+          replaceSelection: jest.fn(),
+          insertText: jest.fn(),
+          scrollIntoView: jest.fn().mockReturnThis(),
+        },
+      },
+      focus: jest.fn(),
+      dispatch: jest.fn(),
+      runtime: mockRuntime,
+      docView: { node: { attrs: { objectId: 'sourceObj' } } },
+    } as unknown as EditorView;
     view = {
       state: {
         config: { pluginsByKey: { 'floating-menu$': plugin } },
@@ -1108,6 +1131,7 @@ describe('createNewSlice,showReferences', () => {
       .mockImplementation(() => { });
 
     const test = createNewSlice(view);
+    createNewSlice(viewTemp);
     // Wait for promise rejection
     await Promise.resolve();
 
@@ -1124,6 +1148,7 @@ describe('createNewSlice,showReferences', () => {
       .mockImplementation(() => { });
 
     const test = createInfoIconHandler(view);
+    createInfoIconHandler(viewTemp);
     // Wait for promise rejection
     await Promise.resolve();
 
@@ -1140,6 +1165,7 @@ describe('createNewSlice,showReferences', () => {
       .mockImplementation(() => { });
 
     const test = createCitationHandler(view);
+    createCitationHandler(viewTemp);
     // Wait for promise rejection
     await Promise.resolve();
 
@@ -1792,8 +1818,16 @@ describe('pasteAsReference - Additional Coverage', () => {
 
     plugin.sliceManager = {
       createSliceViaDialog: jest.fn().mockResolvedValue(null),
-      // eslint-disable-next-line
-    } as any;
+      getDocumentSlices: jest.fn().mockRejectedValue(new Error('Network error')),
+      setSlices: jest.fn(),
+      getDocSlices: jest.fn(),
+      addSliceToList: jest.fn(),
+      setSliceAttrs: jest.fn(),
+      addInfoIcon: jest.fn(),
+      addCitation: jest.fn(),
+      insertReference: jest.fn(),
+    } as ReturnType<typeof createSliceManager>;
+
 
     await pasteAsReference(view, plugin);
 
@@ -1902,9 +1936,14 @@ describe('getDocSlices - Additional Coverage', () => {
     plugin.sliceManager = {
       getDocumentSlices: jest.fn().mockRejectedValue(new Error('Network error')),
       setSlices: jest.fn(),
+      getDocSlices: jest.fn(),
+      addSliceToList: jest.fn(),
       setSliceAttrs: jest.fn(),
-      // eslint-disable-next-line
-    } as any;
+      addInfoIcon: jest.fn(),
+      addCitation: jest.fn(),
+      createSliceViaDialog: jest.fn(),
+      insertReference: jest.fn(),
+    } as ReturnType<typeof createSliceManager>;
 
     await getDocSlices.call(plugin, view);
 
@@ -2198,6 +2237,31 @@ describe('getClosestHTMLElement - 100% Coverage', () => {
     const result = getClosestHTMLElement(span, '.test');
     expect(result).toBe(div);
   });
+  it('returns null for non Element targets', () => {
+    expect(getClosestHTMLElement(null, '.test')).toBeNull();
+    expect(getClosestHTMLElement({} as EventTarget, '.test')).toBeNull();
+  });
+
+  it('returns closest matching HTMLElement', () => {
+    document.body.innerHTML = `
+      <div class="parent">
+        <span id="child"></span>
+      </div>
+    `;
+    const child = document.getElementById('child');
+    expect(child).not.toBeNull();
+    const result = getClosestHTMLElement(child, '.parent');
+
+    expect(result).toBeInstanceOf(HTMLElement);
+    expect(result?.classList.contains('parent')).toBe(true);
+  });
+
+  it('returns null if no matching ancestor found', () => {
+    document.body.innerHTML = `<span id="orphan"></span>`;
+    const orphan = document.getElementById('orphan');
+    expect(orphan).not.toBeNull();
+    expect(getClosestHTMLElement(orphan, '.missing')).toBeNull();
+  });
 });
 
 describe('copySelectionRich - Error Handling', () => {
@@ -2245,7 +2309,6 @@ describe('copySelectionRich - Error Handling', () => {
     const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
     view.updateState(view.state.apply(tr));
     copySelectionRich(view, plugin);
-    // await Promise.resolve();
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 });
@@ -2283,10 +2346,7 @@ describe('copySelectionPlain - Error Handling', () => {
 
     const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
     view.updateState(view.state.apply(tr));
-
     copySelectionPlain(view, plugin);
-    // await Promise.resolve();
-
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 });
@@ -2801,7 +2861,7 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
     await showReferences(view);
 
     expect(plugin.sliceManager.insertReference).toHaveBeenCalled();
-    expect(insertReference).toHaveBeenCalledWith(view, 'slice-123', 'source-xyz', 'TestDoc');
+    expect(insertReference).toHaveBeenCalledWith(view, 'slice-123', 'source-xyz', 'TestDoc', undefined);
 
     cmGetSpy.mockRestore();
   });

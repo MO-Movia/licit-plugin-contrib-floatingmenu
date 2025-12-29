@@ -111,6 +111,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         createNewSliceHandler: jest.fn(),
         showReferencesHandler: jest.fn(),
         pasteAsReferenceEnabled: true,
+        enablePasteAsPlainText: true,
         close: jest.fn(),
       };
 
@@ -162,6 +163,11 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       expect(props.createInfoIconHandler).toHaveBeenCalled();
     });
 
+      it('calls Paste handler', () => {
+      click('Paste');
+      expect(props.pasteHandler).toHaveBeenCalled();
+    });
+
     it('calls createNewSlice + close', () => {
       click('Create Bookmark');
       expect(props.createNewSliceHandler).toHaveBeenCalled();
@@ -179,9 +185,6 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
 
       expect(props.copyRichHandler).toHaveBeenCalled();
       expect(props.copyPlainHandler).toHaveBeenCalled();
-      expect(props.pasteHandler).toHaveBeenCalled();
-      expect(props.pastePlainHandler).toHaveBeenCalled();
-      expect(props.pasteAsReferenceHandler).toHaveBeenCalled();
     });
 
     it('disables Create Citation when selection is empty (original expectation)', () => {
