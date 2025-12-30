@@ -28,7 +28,9 @@ import {
   CMPluginKey,
   getDocSlices,
   getClosestHTMLElement,
+  positionAboveOrBelow,
 } from './FloatingMenuPlugin';
+import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { insertReference } from '@modusoperandi/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
 import { FloatRuntime, SliceModel } from './model';
@@ -72,6 +74,68 @@ const urlConfig = {
   instanceUrl: 'http://modusoperandi.com/editor/instance/',
   referenceUrl: 'http://modusoperandi.com/ont/document#Reference_nodes',
 }
+
+function setup() {
+  type TestEditorView = EditorView & {
+  runtime?: unknown;
+  docView?: {
+    node: {
+      attrs: {
+        objectId?: string;
+        objectMetaData?: Record<string, unknown>;
+      };
+    };
+  };
+};
+  const doc = basicSchema.node('doc', null, [
+    basicSchema.node('paragraph', {}, [basicSchema.text('hi')]),
+  ]);
+
+const plugin = new FloatingMenuPlugin(
+  {} as Partial<FloatRuntime> as FloatRuntime,
+  { instanceUrl: 'http://inst/', referenceUrl: 'http://ref/' }
+);
+
+  const state = EditorState.create({
+    doc,
+    plugins: [plugin],
+  });
+
+  const view = new EditorView(document.createElement('div'), { state }) as TestEditorView;
+
+  view.focus = jest.fn();
+  view.hasFocus = jest.fn(() => true);
+  view.dispatch = jest.fn();
+  view.posAtCoords = jest.fn(() => ({ pos: 1, inside: 0 }));
+  view.runtime = {};
+  view.docView = {
+    node: { attrs: { objectId: 'doc-x', objectMetaData: { name: 'Doc' } } },
+  };
+
+  plugin._view = view;
+
+  // 🔑 attach sliceManager so createNewSlice works
+  plugin.sliceManager = {
+    createSliceViaDialog: jest.fn().mockResolvedValue({
+      id: 'slice-1',
+      source: 'doc-x',
+      from: 'a',
+    }),
+    addSliceToList: jest.fn(),
+    setSlices: jest.fn(),
+    setSliceAttrs: jest.fn(),
+    getDocumentSlices: jest.fn().mockResolvedValue([]),
+    insertReference: jest.fn().mockResolvedValue({
+      id: 'ref-1',
+      source: 'doc-x',
+    }),
+    addInfoIcon: jest.fn(),
+    addCitation: jest.fn(),
+  } as unknown as ReturnType<typeof createSliceManager>;
+
+  return { plugin, view };
+}
+
 
 describe('FloatingMenuPlugin', () => {
   let plugin: FloatingMenuPlugin;
@@ -2897,5 +2961,242 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
     expect(plugin.sliceManager.addCitation).toHaveBeenCalled();
 
     cmGetSpy.mockRestore();
+  });
+    /* --------------------------------------------
+   positionAboveOrBelow
+  --------------------------------------------- */
+
+  it('positionAboveOrBelow returns fallback when anchor undefined', () => {
+    const r = positionAboveOrBelow(
+      undefined as unknown as { x: number; y: number; w: number; h: number },
+      undefined as unknown as { x: number; y: number; w: number; h: number }
+    );
+
+    expect(r).toEqual({ x: 4, y: 4, w: 0, h: 0 });
+  });
+
+  it('positionAboveOrBelow places above when not enough space below', () => {
+    Object.defineProperty(window, 'innerHeight', { value: 100, configurable: true });
+    Object.defineProperty(window, 'innerWidth', { value: 200, configurable: true });
+
+    const rect = positionAboveOrBelow(
+      { x: 10, y: 80, w: 50, h: 30 },
+      { x: 0, y: 0, w: 80, h: 70 }
+    );
+
+    expect(rect.y).toBeLessThan(80);
+  });
+
+  it('positionAboveOrBelow clamps x/y inside viewport', () => {
+    Object.defineProperty(window, 'innerHeight', { value: 100, configurable: true });
+    Object.defineProperty(window, 'innerWidth', { value: 100, configurable: true });
+
+    const rect = positionAboveOrBelow(
+      { x: 200, y: 200, w: 50, h: 50 },
+      { x: 0, y: 0, w: 200, h: 200 }
+    );
+
+    expect(rect.x).toBeGreaterThanOrEqual(6);
+    expect(rect.y).toBeGreaterThanOrEqual(6);
+  });
+
+  /* --------------------------------------------
+   getClosestHTMLElement branches
+  --------------------------------------------- */
+
+  it('getClosestHTMLElement returns null for non-element', () => {
+    expect(getClosestHTMLElement(null as unknown as EventTarget, '.x')).toBeNull();
+  });
+
+  it('getClosestHTMLElement returns null when no match', () => {
+    const div = document.createElement('div');
+    const span = document.createElement('span');
+    div.appendChild(span);
+
+    expect(getClosestHTMLElement(span, '.missing')).toBeNull();
+  });
+
+  it('getClosestHTMLElement finds matching ancestor', () => {
+    const root = document.createElement('div');
+    root.className = 'target';
+
+    const mid = document.createElement('div');
+    const leaf = document.createElement('span');
+
+    mid.appendChild(leaf);
+    root.appendChild(mid);
+
+    expect(getClosestHTMLElement(leaf, '.target')).toBe(root);
+  });
+
+  /* --------------------------------------------
+   getDocSlices rejection branch
+  --------------------------------------------- */
+
+  it('getDocSlices handles rejection', async () => {
+    type SliceManagerMock = {
+      getDocumentSlices: () => Promise<unknown>;
+      setSlices: jest.Mock;
+      setSliceAttrs: jest.Mock;
+    };
+
+    const plugin: {
+      sliceManager: SliceManagerMock;
+    } = {
+      sliceManager: {
+        getDocumentSlices: jest.fn().mockRejectedValue(new Error('fail')),
+        setSlices: jest.fn(),
+        setSliceAttrs: jest.fn(),
+      },
+    };
+
+    await getDocSlices.call(plugin, {} as object);
+
+    expect(plugin.sliceManager.getDocumentSlices).toHaveBeenCalled();
+  });
+});
+
+describe('initKeyCommands()', () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+  });
+
+  type FakeResolvedPos = {
+    depth: number;
+    start: (depth: number) => number;
+    end: (depth: number) => number;
+  };
+
+  type FakeEditorState = {
+    selection: {
+      empty: boolean;
+      $from: FakeResolvedPos;
+      $to: FakeResolvedPos;
+      content: () => { content: { toJSON: () => unknown[] } };
+    };
+    doc: {
+      nodesBetween: (
+        from: number,
+        to: number,
+        cb: (
+          node: { type: { name: string }; attrs?: unknown; textContent?: string },
+          pos: number
+        ) => void
+      ) => void;
+    };
+    config: {
+      pluginsByKey: Record<string, unknown>;
+    };
+  };
+
+  type FakeEditorView = {
+    state: FakeEditorState;
+    hasFocus: () => boolean;
+    focus: () => void;
+  };
+
+  function triggerKey(
+    plugin: unknown,
+    key: string,
+    shift = false
+  ): boolean {
+      type KeymapPlugin = {
+    props?: {
+      handleKeyDown?: (view: unknown, event: KeyboardEvent) => boolean;
+    };
+  };
+
+  const plugins = (
+    plugin as { initKeyCommands: () => KeymapPlugin[] }
+  ).initKeyCommands();
+
+    const fakeResolvedPos: FakeResolvedPos = {
+      depth: 1,
+      start: () => 0,
+      end: () => 5,
+    };
+
+    const fakeView: FakeEditorView = {
+      state: {
+        selection: {
+          empty: false,
+          $from: fakeResolvedPos,
+          $to: fakeResolvedPos,
+          content: () => ({
+            content: {
+              toJSON: () => [],
+            },
+          }),
+        },
+
+        doc: {
+          nodesBetween: (_from, _to, cb) => {
+            cb(
+              {
+                type: { name: 'paragraph' },
+                attrs: { objectId: 'p1' },
+                textContent: 'Hello',
+              },
+              _from
+            );
+          },
+        },
+
+        config: {
+          pluginsByKey: {
+            [(CMPluginKey as unknown as { key: string }).key]: plugin,
+          },
+        },
+      },
+
+      hasFocus: () => true,
+      focus: () => undefined,
+    };
+
+    for (const p of plugins) {
+      const handler = p.props?.handleKeyDown as
+        | ((view: FakeEditorView, event: KeyboardEvent) => boolean)
+        | undefined;
+
+      if (!handler) continue;
+
+      const event = new KeyboardEvent('keydown', {
+        key,
+        ctrlKey: true,
+        shiftKey: shift,
+      });
+
+      if (handler(fakeView, event)) return true;
+    }
+
+    return false;
+  }
+
+  it('handles COPY shortcut', () => {
+    const { plugin } = setup();
+    const result = triggerKey(plugin, 'c');
+    expect(result).toBe(false);
+  });
+
+  it('handles CUT shortcut', () => {
+    const { plugin } = setup();
+    const result = triggerKey(plugin, 'x');
+    expect(result).toBe(false);
+  });
+
+  it('handles PASTE shortcut', () => {
+    const { plugin } = setup();
+    const result = triggerKey(plugin, 'v');
+    expect(result).toBe(true);
+  });
+
+  it('handles PASTE REFERENCE shortcut', () => {
+    const { plugin } = setup();
+    const result = triggerKey(plugin, 'v', true);
+    expect(result).toBe(true);
   });
 });

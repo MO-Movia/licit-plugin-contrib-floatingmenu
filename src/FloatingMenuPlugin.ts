@@ -494,7 +494,7 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   return DecorationSet.create(state.doc, decorations);
 }
 
-function positionAboveOrBelow(anchorRect?: Rect, bodyRect?: Rect): Rect {
+export function positionAboveOrBelow(anchorRect?: Rect, bodyRect?: Rect): Rect {
   if (!anchorRect) {
     return { x: 4, y: 4, w: 0, h: 0 };
   }
