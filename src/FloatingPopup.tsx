@@ -5,14 +5,13 @@
 
 import React from 'react';
 import { CustomButton } from '@modusoperandi/licit-ui-commands';
-import { EditorView } from 'prosemirror-view';
 import {EditorState} from 'prosemirror-state';
 
 interface FloatingMenuProps {
   editorState: EditorState;
-  editorView: EditorView;
   paragraphPos: number;
   pasteAsReferenceEnabled: boolean;
+  enablePasteAsPlainText: boolean;
   copyRichHandler: () => void;
   copyPlainHandler: () => void;
   createCitationHandler: () => void;
@@ -22,7 +21,6 @@ interface FloatingMenuProps {
   pastePlainHandler: () => void;
   createNewSliceHandler: () => void;
   showReferencesHandler: () => void;
-  close?: (menuName: string) => void;
 }
 
 export class FloatingMenu extends React.PureComponent<FloatingMenuProps, FloatingMenuProps> {
@@ -48,6 +46,7 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
 
     const enableCitationAndComment = isTextSelected;
     const enableTagAndInfoicon = inThisParagraph;
+    const enableCopy = !selection.empty;
 
     return (
       <div className="context-menu" role="menu" tabIndex={-1}>
@@ -63,14 +62,14 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
             onClick={this.props.createInfoIconHandler}
           />
 
-          <CustomButton label="Copy" onClick={this.props.copyRichHandler} />
-          <CustomButton label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
+          <CustomButton disabled={!enableCopy} label="Copy" onClick={this.props.copyRichHandler} />
+          <CustomButton disabled={!enableCopy} label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
 
-          <CustomButton label="Paste" onClick={() => {
+          <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste" onClick={() => {
             this.props.pasteHandler();
           }}
           />
-          <CustomButton label="Paste As Plain Text" onClick={this.props.pastePlainHandler} />
+          <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste As Plain Text" onClick={this.props.pastePlainHandler} />
           <CustomButton
             disabled={!this.props.pasteAsReferenceEnabled}
             label="Paste As Reference"

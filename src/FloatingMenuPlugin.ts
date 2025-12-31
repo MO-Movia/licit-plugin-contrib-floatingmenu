@@ -10,13 +10,14 @@ import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
 import {
   createPopUp,
   PopUpHandle,
-  atAnchorBottomLeft,
+  Rect
 } from '@modusoperandi/licit-ui-commands';
 import { FloatingMenu } from './FloatingPopup';
 import { v4 as uuidv4 } from 'uuid';
 import { insertReference } from '@modusoperandi/licit-referencing';
 import { createSliceManager } from './slice';
 import { FloatRuntime } from './model';
+import { createKeyMapPlugin, makeKeyMapWithCommon } from '@modusoperandi/licit-doc-attrs-step';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 interface SliceModel {
@@ -29,6 +30,10 @@ interface SliceModel {
   to: string;
   ids: string[];
 }
+export const KEY_COPY = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-c');
+export const KEY_CUT = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-x');
+export const KEY_PASTE = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-v');
+export const KEY_PASTE_REF = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-Alt-v');
 
 interface UrlConfig {
   instanceUrl?: string;
@@ -136,6 +141,39 @@ export class FloatingMenuPlugin extends Plugin {
     });
   }
 
+  public initKeyCommands(): Plugin[] {
+    return createKeyMapPlugin([
+      {
+        map: {
+          [KEY_COPY.common]: (_state, _dispatch, view) =>
+            copySelectionRich(view, this),
+        },
+        name: 'CopySlicePluginKeyCommands',
+      },
+      {
+        map: {
+          [KEY_CUT.common]: (_state, _dispatch, view) =>
+            copySelectionRich(view, this),
+        },
+        name: 'CutSlicePluginKeyCommands',
+      },
+      {
+        map: {
+          [KEY_PASTE.common]: (_state, _dispatch, view) =>
+            pasteFromClipboard(view, this),
+        },
+        name: 'PasteSlicePluginKeyCommands',
+      },
+      {
+        map: {
+          [KEY_PASTE_REF.common]: (_state, _dispatch, view) =>
+            pasteAsReference(view, this),
+        },
+        name: 'PasteReferencePluginKeyCommands',
+      },
+    ]) as Plugin[];
+  }
+
   getEffectiveSchema(schema: Schema): Schema {
     return schema;
   }
@@ -190,9 +228,6 @@ export function createSliceObject(editorView: EditorView): SliceModel {
     ids: [],
   };
 
-  const objectIds: string[] = [];
-  let firstParagraphText: string | null = null;
-
   editorView.focus();
 
   const $from = editorView.state.selection.$from;
@@ -201,16 +236,24 @@ export function createSliceObject(editorView: EditorView): SliceModel {
   const from = $from.start($from.depth);
   const to = $to.end($to.depth);
 
-  editorView.state.doc.nodesBetween(from, to, (node) => {
+  const paragraphEntries: { pos: number; id?: string; text?: string }[] = [];
+
+  editorView.state.doc.nodesBetween(from, to, (node, pos) => {
     if (node.type.name === 'paragraph') {
-      if (!firstParagraphText && node.textContent?.trim()) {
-        firstParagraphText = node.textContent.trim();
-      }
-      if (node.attrs?.objectId) {
-        objectIds.push(node.attrs.objectId);
-      }
+      paragraphEntries.push({
+        pos,
+        id: node.attrs?.objectId,
+        text: node.textContent?.trim() || undefined,
+      });
     }
   });
+
+  paragraphEntries.sort((a, b) => a.pos - b.pos);
+  const objectIds = paragraphEntries
+    .filter(entry => entry.id !== undefined)
+    .map(entry => entry.id);
+
+  const firstParagraphText = paragraphEntries.find(entry => entry.text)?.text ?? '';
 
   sliceModel.id = instanceUrl + uuidv4();
   sliceModel.ids = objectIds;
@@ -307,7 +350,8 @@ export async function pasteAsReference(
       view,
       val.id,
       val.source,
-      view['docView']?.node?.attrs?.objectMetaData?.name
+      view['docView']?.node?.attrs?.objectMetaData?.name,
+      val.from
     );
   } catch (err) {
     console.error('Failed to paste content or create slice:', err);
@@ -357,6 +401,15 @@ export async function pasteAsPlainText(
   if (plugin._popUpHandle?.close) {
     plugin._popUpHandle.close(null);
     plugin._popUpHandle = null;
+  }
+}
+
+export async function clipboardHasData(): Promise<boolean> {
+  try {
+    const text = await navigator.clipboard.readText();
+    return !!text;
+  } catch {
+    return false;
   }
 }
 
@@ -441,6 +494,52 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   return DecorationSet.create(state.doc, decorations);
 }
 
+export function positionAboveOrBelow(anchorRect?: Rect, bodyRect?: Rect): Rect {
+  if (!anchorRect) {
+    return { x: 4, y: 4, w: 0, h: 0 };
+  }
+
+  const estimatedWidth = bodyRect && bodyRect.w > 0 ? bodyRect.w : 180;
+  const estimatedHeight = bodyRect && bodyRect.h > 0 ? bodyRect.h : 220;
+
+
+  const menuW = estimatedWidth;
+  const menuH = estimatedHeight;
+
+  // available space below/above relative to viewport
+  const anchorBottom = anchorRect.y + anchorRect.h;
+  const spaceBelow = window.innerHeight - anchorBottom;
+  const spaceAbove = anchorRect.y;
+
+  let y: number;
+  let x: number;
+
+  if (spaceBelow < menuH && spaceAbove > menuH) {
+    y = anchorRect.y - menuH - 6; // small gap
+  } else {
+    y = anchorBottom + 6;
+  }
+
+  x = anchorRect.x;
+  if (x + menuW > window.innerWidth - 6) {
+    x = Math.max(6, window.innerWidth - menuW - 6);
+  }
+
+  x = Math.max(6, x);
+
+  if (y < 6) y = 6;
+  if (y + menuH > window.innerHeight - 6) {
+    y = Math.max(6, window.innerHeight - menuH - 6);
+  }
+
+  return {
+    x: Math.round(x),
+    y: Math.round(y),
+    w: Math.round(menuW),
+    h: Math.round(menuH),
+  };
+}
+
 export function openFloatingMenu(
   plugin: FloatingMenuPlugin,
   view: EditorView,
@@ -455,39 +554,44 @@ export function openFloatingMenu(
   }
 
   // Determine if clipboard has ProseMirror data
-  clipboardHasProseMirrorData().then((hasPM) => {
-    plugin._popUpHandle = createPopUp(
-      FloatingMenu,
-      {
-        editorState: view.state,
-        editorView: view,
-        paragraphPos: pos,
-        pasteAsReferenceEnabled: hasPM,
-        copyRichHandler: () => copySelectionRich(view, plugin),
-        copyPlainHandler: () => copySelectionPlain(view, plugin),
-        pasteHandler: () => pasteFromClipboard(view, plugin),
-        pasteAsReferenceHandler: () => pasteAsReference(view, plugin),
-        pastePlainHandler: () => pasteAsPlainText(view, plugin),
-        createInfoIconHandler: () => createInfoIconHandler(view),
-        createCitationHandler: () => createCitationHandler(view),
-        createNewSliceHandler: () => createNewSlice(view),
-        showReferencesHandler: () => showReferences(view),
-      },
-      {
-        anchor: anchorEl || view.dom,
-        contextPos: contextPos,
-        position: atAnchorBottomLeft,
-        autoDismiss: false,
-        onClose: () => {
-          plugin._popUpHandle = null;
-          // Remove 'popup-open' class if anchor is a hamburger wrapper
-          anchorEl
-            ?.closest('.pm-hamburger-wrapper')
-            ?.classList.remove('popup-open');
+  Promise.all([clipboardHasProseMirrorData(), clipboardHasData()])
+    .then(([hasPM, clipboardHasData]) => {
+      plugin._popUpHandle = createPopUp(
+        FloatingMenu,
+        {
+          editorState: view.state,
+          editorView: view,
+          paragraphPos: pos,
+          pasteAsReferenceEnabled: hasPM,
+          enablePasteAsPlainText: clipboardHasData,
+          copyRichHandler: () => copySelectionRich(view, plugin),
+          copyPlainHandler: () => copySelectionPlain(view, plugin),
+          pasteHandler: () => pasteFromClipboard(view, plugin),
+          pasteAsReferenceHandler: () => pasteAsReference(view, plugin),
+          pastePlainHandler: () => pasteAsPlainText(view, plugin),
+          createInfoIconHandler: () => createInfoIconHandler(view),
+          createCitationHandler: () => createCitationHandler(view),
+          createNewSliceHandler: () => createNewSlice(view),
+          showReferencesHandler: () => showReferences(view),
         },
-      }
-    );
-  }).catch(console.error);
+        {
+          anchor: anchorEl || view.dom,
+          contextPos: contextPos,
+          position: positionAboveOrBelow,
+          autoDismiss: false,
+          onClose: () => {
+            plugin._popUpHandle = null;
+            // Remove 'popup-open' class if anchor is a hamburger wrapper
+            anchorEl
+              ?.closest('.pm-hamburger-wrapper')
+              ?.classList.remove('popup-open');
+          },
+        }
+      );
+    })
+    .catch(err => {
+      console.error('Failed to check clipboard data:', err);
+    });
 }
 
 export function addAltRightClickHandler(
@@ -557,7 +661,8 @@ export function showReferences(view: EditorView): Promise<void> {
         view,
         val.id,
         val.source,
-        view['docView']?.node?.attrs?.objectMetaData?.name
+        view['docView']?.node?.attrs?.objectMetaData?.name,
+        val.from
       );
     })
     .catch((err) => {
