@@ -171,7 +171,7 @@ export class FloatingMenuPlugin extends Plugin {
         },
         name: 'PasteReferencePluginKeyCommands',
       },
-    ]);
+    ]) as Plugin[];
   }
 
   getEffectiveSchema(schema: Schema): Schema {
