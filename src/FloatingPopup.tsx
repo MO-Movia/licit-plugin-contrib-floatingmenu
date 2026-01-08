@@ -5,7 +5,7 @@
 
 import React from 'react';
 import { CustomButton } from '@modusoperandi/licit-ui-commands';
-import {EditorState} from 'prosemirror-state';
+import { EditorState } from 'prosemirror-state';
 
 interface FloatingMenuProps {
   editorState: EditorState;
@@ -51,28 +51,28 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
     return (
       <div className="context-menu" role="menu" tabIndex={-1}>
         <div className="context-menu__items">
-                      <CustomButton
-              disabled={!enableCitationAndComment}
-              label="Create Citation"
-              onClick={this.props.createCitationHandler}
-            />
-                    <CustomButton
+          <CustomButton
+            disabled={!enableCitationAndComment}
+            label="Create Citation"
+            onClick={this.props.createCitationHandler}
+          />
+          <CustomButton
             disabled={!enableTagAndInfoicon}
             label="Create Infoicon"
             onClick={this.props.createInfoIconHandler}
           />
 
-          <CustomButton disabled={!enableCopy} label="Copy" onClick={this.props.copyRichHandler} />
+          <CustomButton disabled={!enableCopy} label="Copy(Ctrl + C)" onClick={this.props.copyRichHandler} />
           <CustomButton disabled={!enableCopy} label="Copy Without Formatting" onClick={this.props.copyPlainHandler} />
 
-          <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste" onClick={() => {
+          <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste(Ctrl + V)" onClick={() => {
             this.props.pasteHandler();
           }}
           />
           <CustomButton disabled={!this.props.enablePasteAsPlainText} label="Paste As Plain Text" onClick={this.props.pastePlainHandler} />
           <CustomButton
             disabled={!this.props.pasteAsReferenceEnabled}
-            label="Paste As Reference"
+            label="Paste As Reference(Ctrl + Alt + V)"
             onClick={() => {
               this.props.pasteAsReferenceHandler();
             }}
