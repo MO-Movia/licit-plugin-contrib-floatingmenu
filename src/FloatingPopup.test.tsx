@@ -143,11 +143,11 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       expect(labels).toEqual([
         'Create Citation',
         'Create Infoicon',
-        'Copy',
+        'Copy(Ctrl + C)',
         'Copy Without Formatting',
-        'Paste',
+        'Paste(Ctrl + V)',
         'Paste As Plain Text',
-        'Paste As Reference',
+        'Paste As Reference(Ctrl + Alt + V)',
         'Create Bookmark',
         'Insert Reference',
       ]);
@@ -164,7 +164,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     });
 
       it('calls Paste handler', () => {
-      click('Paste');
+      click('Paste(Ctrl + V)');
       expect(props.pasteHandler).toHaveBeenCalled();
     });
 
@@ -177,11 +177,11 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       expect(props.showReferencesHandler).toHaveBeenCalled();
     });
     it('calls copy/paste handlers (button wiring)', () => {
-      click('Copy');
+      click('Copy(Ctrl + C)');
       click('Copy Without Formatting');
-      click('Paste');
+      click('Paste(Ctrl + V)');
       click('Paste As Plain Text');
-      click('Paste As Reference');
+      click('Paste As Reference(Ctrl + Alt + V)');
 
       expect(props.copyRichHandler).toHaveBeenCalled();
       expect(props.copyPlainHandler).toHaveBeenCalled();
@@ -204,7 +204,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('disables Paste as Reference when flag is false', () => {
       props.pasteAsReferenceEnabled = false;
       ReactDOM.render(<FloatingMenu {...props} />, container);
-      expect(getButton('Paste As Reference').disabled).toBe(true);
+      expect(getButton('Paste As Reference(Ctrl + Alt + V)').disabled).toBe(true);
     });
 
     it('does not throw when close callback missing', () => {
@@ -223,7 +223,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('Copy button works even if editorState.selection.empty is true', () => {
       props.editorState.selection.empty = true;
       ReactDOM.render(<FloatingMenu {...props} />, container);
-      click('Copy');
+      click('Copy(Ctrl + C)');
       expect(props.copyRichHandler).toHaveBeenCalled();
     });
 
@@ -237,11 +237,11 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     it('Paste As Reference toggles disabled state with prop', () => {
       props.pasteAsReferenceEnabled = false;
       ReactDOM.render(<FloatingMenu {...props} />, container);
-      expect(getButton('Paste As Reference').disabled).toBe(true);
+      expect(getButton('Paste As Reference(Ctrl + Alt + V)').disabled).toBe(true);
 
       props.pasteAsReferenceEnabled = true;
       ReactDOM.render(<FloatingMenu {...props} />, container);
-      expect(getButton('Paste As Reference').disabled).toBe(false);
+      expect(getButton('Paste As Reference(Ctrl + Alt + V)').disabled).toBe(false);
     });
 
     it('handles missing runtime functions safely (no-ops)', () => {
