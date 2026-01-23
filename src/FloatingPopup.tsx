@@ -53,6 +53,14 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
         <div className="context-menu__items">
           <CustomButton
             disabled={!enableCitationAndComment}
+            label="Add Comment"
+          />
+            <CustomButton
+            disabled={!enableCitationAndComment}
+            label="Add Tag"
+          />
+          <CustomButton
+            disabled={!enableCitationAndComment}
             label="Create Citation"
             onClick={this.props.createCitationHandler}
           />
