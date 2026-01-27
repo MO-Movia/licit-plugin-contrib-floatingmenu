@@ -78,7 +78,7 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps, Floatin
             }}
           />
 
-          <CustomButton label="Create Bookmark" onClick={() => {
+          <CustomButton label="Create Referent" onClick={() => {
             this.props.createNewSliceHandler();
           }}
           />
