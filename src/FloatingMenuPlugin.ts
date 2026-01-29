@@ -18,6 +18,8 @@ import { insertReference } from '@modusoperandi/licit-referencing';
 import { createSliceManager } from './slice';
 import { FloatRuntime } from './model';
 import { createKeyMapPlugin, makeKeyMapWithCommon } from '@modusoperandi/licit-doc-attrs-step';
+import { FloatingMenuItem } from './FloatingMenuTypes';
+import { getDefaultMenuItems } from './FloatingMenuDefaults';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 interface SliceModel {
@@ -44,8 +46,9 @@ export class FloatingMenuPlugin extends Plugin {
   _popUpHandle: PopUpHandle | null = null;
   _view: EditorView | null = null;
   _urlConfig: UrlConfig | null = null;
+  menuItems?: FloatingMenuItem[];
   sliceManager: ReturnType<typeof createSliceManager>;
-  constructor(sliceRuntime: FloatRuntime, urlConfig: UrlConfig = {}) {
+  constructor(sliceRuntime: FloatRuntime, urlConfig: UrlConfig = {}, menuItems?: FloatingMenuItem[]) {
     const sliceManager = createSliceManager(sliceRuntime);
     super({
       key: CMPluginKey,
@@ -139,6 +142,7 @@ export class FloatingMenuPlugin extends Plugin {
         return {};
       },
     });
+    this.menuItems = menuItems;
   }
 
   public initKeyCommands(): Plugin[] {
@@ -543,54 +547,60 @@ export function positionAboveOrBelow(anchorRect?: Rect, bodyRect?: Rect): Rect {
 export function openFloatingMenu(
   plugin: FloatingMenuPlugin,
   view: EditorView,
-  pos: number,
+  pos?: number,
   anchorEl?: HTMLElement,
   contextPos?: { x: number; y: number }
 ) {
-  // Close existing popup if any
   if (plugin._popUpHandle) {
     plugin._popUpHandle.close(null);
-    plugin._popUpHandle = null;
   }
 
-  // Determine if clipboard has ProseMirror data
   Promise.all([clipboardHasProseMirrorData(), clipboardHasData()])
-    .then(([hasPM, clipboardHasData]) => {
+    .then(([hasPM, hasClipboard]) => {
+      const ctx = {
+        editorState: view.state,
+        paragraphPos: pos,
+      };
+
+      const items =
+        plugin.menuItems ??
+        getDefaultMenuItems({
+          enableCopy: () => !view.state.selection.empty,
+          enablePaste: () => hasClipboard,
+          enablePasteAsReference: () => hasPM,
+          enableCitationAndComment: () => !view.state.selection.empty,
+          enableTagAndInfoicon: () => true,
+
+          copyRich: () => copySelectionRich(view, plugin),
+          copyPlain: () => copySelectionPlain(view, plugin),
+          paste: () => pasteFromClipboard(view, plugin),
+          pastePlain: () => pasteAsPlainText(view, plugin),
+          pasteAsReference: () => pasteAsReference(view, plugin),
+          createCitation: () => createCitationHandler(view),
+          createInfoIcon: () => createInfoIconHandler(view),
+          createSlice: () => createNewSlice(view),
+          showReferences: () => showReferences(view),
+          addComment: () => {},
+          addTag: () => {},
+        });
+
       plugin._popUpHandle = createPopUp(
         FloatingMenu,
         {
-          editorState: view.state,
-          editorView: view,
-          paragraphPos: pos,
-          pasteAsReferenceEnabled: hasPM,
-          enablePasteAsPlainText: clipboardHasData,
-          copyRichHandler: () => copySelectionRich(view, plugin),
-          copyPlainHandler: () => copySelectionPlain(view, plugin),
-          pasteHandler: () => pasteFromClipboard(view, plugin),
-          pasteAsReferenceHandler: () => pasteAsReference(view, plugin),
-          pastePlainHandler: () => pasteAsPlainText(view, plugin),
-          createInfoIconHandler: () => createInfoIconHandler(view),
-          createCitationHandler: () => createCitationHandler(view),
-          createNewSliceHandler: () => createNewSlice(view),
-          showReferencesHandler: () => showReferences(view),
+          context: ctx,
+          items,
         },
         {
           anchor: anchorEl || view.dom,
-          contextPos: contextPos,
+          contextPos,
           position: positionAboveOrBelow,
           autoDismiss: false,
           onClose: () => {
             plugin._popUpHandle = null;
-            // Remove 'popup-open' class if anchor is a hamburger wrapper
-            anchorEl
-              ?.closest('.pm-hamburger-wrapper')
-              ?.classList.remove('popup-open');
+            anchorEl?.closest('.pm-hamburger-wrapper')?.classList.remove('popup-open');
           },
         }
       );
-    })
-    .catch(err => {
-      console.error('Failed to check clipboard data:', err);
     });
 }
 
