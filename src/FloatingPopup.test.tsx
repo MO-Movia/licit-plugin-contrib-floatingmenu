@@ -150,7 +150,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         'Paste(Ctrl + V)',
         'Paste As Plain Text',
         'Paste As Reference(Ctrl + Alt + V)',
-        'Create Bookmark',
+        'Create Referent',
         'Insert Reference',
       ]);
     });
@@ -171,7 +171,7 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
     });
 
     it('calls createNewSlice + close', () => {
-      click('Create Bookmark');
+      click('Create Referent');
       expect(props.createNewSliceHandler).toHaveBeenCalled();
     });
     it('calls insertReference + close', () => {
@@ -215,10 +215,10 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
       expect(() => click('Create Citation')).not.toThrow();
     });
 
-    it('Create Bookmark still works if close is missing', () => {
+    it('Create Referent still works if close is missing', () => {
       delete props.close;
       ReactDOM.render(<FloatingMenu {...props} />, container);
-      click('Create Bookmark');
+      click('Create Referent');
       expect(props.createNewSliceHandler).toHaveBeenCalled();
     });
 
