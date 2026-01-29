@@ -141,6 +141,8 @@ describe('FloatingMenu (Jest + DOM) - Extended & Plugin unit tests', () => {
         (b) => b.textContent
       );
       expect(labels).toEqual([
+        'Add Comment',
+        'Add Tag',
         'Create Citation',
         'Create Infoicon',
         'Copy(Ctrl + C)',
