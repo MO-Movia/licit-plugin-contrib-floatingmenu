@@ -1,5 +1,9 @@
+/**
+ * @license MIT
+ * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
+ */
 
-import { FloatingMenuItem } from './FloatingMenuTypes';
+import { FloatingMenuItem } from './model';
 
 export function getDefaultMenuItems(handlers): FloatingMenuItem[] {
   return [
@@ -59,7 +63,7 @@ export function getDefaultMenuItems(handlers): FloatingMenuItem[] {
     },
     {
       id: 'slice',
-      label: 'Create Bookmark',
+      label: 'Create Referent',
       onClick: handlers.createSlice,
     },
     {

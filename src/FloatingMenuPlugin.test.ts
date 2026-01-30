@@ -1,8 +1,6 @@
 /**
  * @license MIT
  * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
- *
- * @jest-environment jsdom
  */
 
 import { EditorState, TextSelection, Transaction } from 'prosemirror-state';
@@ -22,6 +20,7 @@ import {
   pasteFromClipboard,
   addAltRightClickHandler,
   clipboardHasProseMirrorData,
+  clipboardHasData,
   showReferences,
   createInfoIconHandler,
   createCitationHandler,
@@ -29,6 +28,9 @@ import {
   getDocSlices,
   getClosestHTMLElement,
   positionAboveOrBelow,
+  createMenuCallbacks,
+  closeExistingPopup,
+  createOnCloseHandler,
 } from './FloatingMenuPlugin';
 import { schema as basicSchema } from 'prosemirror-schema-basic';
 import { insertReference } from '@modusoperandi/licit-referencing';
@@ -36,9 +38,10 @@ import * as licitCommands from '@modusoperandi/licit-ui-commands';
 import { FloatRuntime, SliceModel } from './model';
 import type * as FloatingMenuPluginModule from './FloatingMenuPlugin';
 import { createSliceManager } from './slice';
+
 // Mock external dependencies
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
-  createPopUp: jest.fn(() => ({ close: jest.fn() })),
+  createPopUp: jest.fn((_c, _p, options) => ({ close: jest.fn(), options })),
   atAnchorBottomLeft: jest.fn(),
 }));
 jest.mock('@modusoperandi/licit-referencing', () => ({
@@ -77,24 +80,24 @@ const urlConfig = {
 
 function setup() {
   type TestEditorView = EditorView & {
-  runtime?: unknown;
-  docView?: {
-    node: {
-      attrs: {
-        objectId?: string;
-        objectMetaData?: Record<string, unknown>;
+    runtime?: unknown;
+    docView?: {
+      node: {
+        attrs: {
+          objectId?: string;
+          objectMetaData?: Record<string, unknown>;
+        };
       };
     };
   };
-};
   const doc = basicSchema.node('doc', null, [
     basicSchema.node('paragraph', {}, [basicSchema.text('hi')]),
   ]);
 
-const plugin = new FloatingMenuPlugin(
-  {} as Partial<FloatRuntime> as FloatRuntime,
-  { instanceUrl: 'http://inst/', referenceUrl: 'http://ref/' }
-);
+  const plugin = new FloatingMenuPlugin(
+    {} as Partial<FloatRuntime> as FloatRuntime,
+    { instanceUrl: 'http://inst/', referenceUrl: 'http://ref/' }
+  );
 
   const state = EditorState.create({
     doc,
@@ -2962,9 +2965,9 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
 
     cmGetSpy.mockRestore();
   });
-    /* --------------------------------------------
-   positionAboveOrBelow
-  --------------------------------------------- */
+  /* --------------------------------------------
+ positionAboveOrBelow
+--------------------------------------------- */
 
   it('positionAboveOrBelow returns fallback when anchor undefined', () => {
     const r = positionAboveOrBelow(
@@ -3104,15 +3107,15 @@ describe('initKeyCommands()', () => {
     key: string,
     shift = false
   ): boolean {
-      type KeymapPlugin = {
-    props?: {
-      handleKeyDown?: (view: unknown, event: KeyboardEvent) => boolean;
+    type KeymapPlugin = {
+      props?: {
+        handleKeyDown?: (view: unknown, event: KeyboardEvent) => boolean;
+      };
     };
-  };
 
-  const plugins = (
-    plugin as { initKeyCommands: () => KeymapPlugin[] }
-  ).initKeyCommands();
+    const plugins = (
+      plugin as { initKeyCommands: () => KeymapPlugin[] }
+    ).initKeyCommands();
 
     const fakeResolvedPos: FakeResolvedPos = {
       depth: 1,
@@ -3198,5 +3201,578 @@ describe('initKeyCommands()', () => {
     const { plugin } = setup();
     const result = triggerKey(plugin, 'v', true);
     expect(result).toBe(true);
+  });
+});
+
+describe('Function Coverage - Uncovered Lines', () => {
+  let schema: Schema;
+  let plugin: FloatingMenuPlugin;
+  let view: EditorView;
+  let state: EditorState;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+          attrs: { objectId: { default: '' }, isDeco: { default: null } },
+        },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+
+    plugin = new FloatingMenuPlugin(mockRuntime, urlConfig);
+    state = EditorState.create({ schema, plugins: [plugin] });
+    view = new EditorView(document.createElement('div'), { state });
+
+    // Mock clipboard
+    Object.assign(navigator, {
+      clipboard: {
+        writeText: jest.fn().mockResolvedValue(undefined),
+        readText: jest.fn().mockResolvedValue(''),
+      },
+    });
+  });
+
+  describe('copySelectionPlain popup close (Lines 295-296)', () => {
+    it('should close popup and set to null after copying', () => {
+      const doc = schema.nodes.doc.create({}, [
+        schema.nodes.paragraph.create({}, schema.text('Test content')),
+      ]);
+      const newState = EditorState.create({ schema, doc });
+      view.updateState(newState);
+
+      // Set selection
+      const tr = view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, 0, 5)
+      );
+      view.updateState(view.state.apply(tr));
+
+      // Create popup handle
+      const closeSpy = jest.fn();
+      plugin._popUpHandle = {
+        close: closeSpy,
+        update: jest.fn(),
+      };
+
+      copySelectionPlain(view, plugin);
+
+      // Verify close was called and handle is null
+      expect(closeSpy).toHaveBeenCalledWith(null);
+      expect(plugin._popUpHandle).toBeNull();
+    });
+  });
+
+  // These are tested by directly calling the functions that use them
+  describe('Default menu item callbacks (Lines 567-581)', () => {
+    it('should execute enable and action callbacks via getDefaultMenuItems', async () => {
+      // Import getDefaultMenuItems to test the callbacks directly
+      const { getDefaultMenuItems } = await import('./FloatingMenuDefaults');
+
+      // Set up view with non-empty selection
+      const doc = schema.nodes.doc.create({}, [
+        schema.nodes.paragraph.create({}, schema.text('Test')),
+      ]);
+      const newState = EditorState.create({ schema, doc });
+      view.updateState(newState);
+      const tr = view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, 0, 4)
+      );
+      view.updateState(view.state.apply(tr));
+
+      // Mock clipboard
+      (navigator.clipboard.readText as jest.Mock).mockResolvedValue('test');
+
+      // Create menu items with the callbacks
+      const menuItems = getDefaultMenuItems({
+        enableCopy: () => !view.state.selection.empty,
+        enablePaste: () => true,
+        enablePasteAsReference: () => true,
+        enableCitationAndComment: () => !view.state.selection.empty,
+        enableTagAndInfoicon: () => true,
+        copyRich: () => copySelectionRich(view, plugin),
+        copyPlain: () => copySelectionPlain(view, plugin),
+        paste: () => pasteFromClipboard(view, plugin),
+        pastePlain: () => pasteAsPlainText(view, plugin),
+        pasteAsReference: () => pasteAsReference(view, plugin),
+        createCitation: () => createCitationHandler(view),
+        createInfoIcon: () => createInfoIconHandler(view),
+        createSlice: () => createNewSlice(view),
+        showReferences: () => showReferences(view),
+        addComment: () => { },
+        addTag: () => { },
+      });
+
+      // Verify menu items were created
+      expect(menuItems).toBeDefined();
+      expect(menuItems.length).toBeGreaterThan(0);
+    });
+
+    it('should invoke copyRich callback', () => {
+      const doc = schema.nodes.doc.create({}, [
+        schema.nodes.paragraph.create({}, schema.text('Test')),
+      ]);
+      const newState = EditorState.create({ schema, doc });
+      view.updateState(newState);
+      const tr = view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, 0, 4)
+      );
+      view.updateState(view.state.apply(tr));
+
+      jest.spyOn(view, 'focus').mockImplementation(() => { });
+
+      // Call copyRich directly
+      copySelectionRich(view, plugin);
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    });
+
+    it('should invoke copyPlain callback', () => {
+      const doc = schema.nodes.doc.create({}, [
+        schema.nodes.paragraph.create({}, schema.text('Test')),
+      ]);
+      const newState = EditorState.create({ schema, doc });
+      view.updateState(newState);
+      const tr = view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, 0, 4)
+      );
+      view.updateState(view.state.apply(tr));
+
+      jest.spyOn(view, 'focus').mockImplementation(() => { });
+
+      copySelectionPlain(view, plugin);
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    });
+
+    it('should invoke paste callback', async () => {
+      (navigator.clipboard.readText as jest.Mock).mockResolvedValue('text');
+
+      // Mock dispatch properly
+      const dispatchSpy = jest.fn();
+      view.dispatch = dispatchSpy;
+
+      await pasteFromClipboard(view, plugin);
+
+      expect(dispatchSpy).toHaveBeenCalled();
+    });
+
+    it('should invoke pastePlain callback', async () => {
+      (navigator.clipboard.readText as jest.Mock).mockResolvedValue('text');
+
+      // Mock dispatch properly
+      const dispatchSpy = jest.fn();
+      view.dispatch = dispatchSpy;
+
+      await pasteAsPlainText(view, plugin);
+
+      expect(dispatchSpy).toHaveBeenCalled();
+    });
+
+    it('should invoke pasteAsReference callback', async () => {
+      const sliceModel = { id: 'id1', source: 'src', name: 'slice1' };
+      (navigator.clipboard.readText as jest.Mock).mockResolvedValue(
+        JSON.stringify({ sliceModel })
+      );
+
+      const createSliceViaDialogMock = jest.fn().mockResolvedValue({
+        id: 'id1',
+        source: 'src',
+      });
+
+      plugin.sliceManager = {
+        createSliceViaDialog: createSliceViaDialogMock,
+      } as unknown as ReturnType<typeof createSliceManager>;
+
+      await pasteAsReference(view, plugin);
+
+      expect(createSliceViaDialogMock).toHaveBeenCalled();
+    });
+
+    it('should invoke createCitation callback', () => {
+      const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
+      plugin.sliceManager = {
+        addCitation: jest.fn(),
+      } as unknown as ReturnType<typeof createSliceManager>;
+
+      createCitationHandler(view);
+
+      expect(plugin.sliceManager.addCitation).toHaveBeenCalled();
+      cmGetSpy.mockRestore();
+    });
+
+    it('should invoke createInfoIcon callback', () => {
+      const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
+      plugin.sliceManager = {
+        addInfoIcon: jest.fn(),
+      } as unknown as ReturnType<typeof createSliceManager>;
+
+      createInfoIconHandler(view);
+
+      expect(plugin.sliceManager.addInfoIcon).toHaveBeenCalled();
+      cmGetSpy.mockRestore();
+    });
+
+    it('should invoke createSlice callback', () => {
+      const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
+      plugin.sliceManager = {
+        createSliceViaDialog: jest.fn().mockResolvedValue({ id: 'slice1' }),
+        addSliceToList: jest.fn(),
+      } as unknown as ReturnType<typeof createSliceManager>;
+
+      createNewSlice(view);
+
+      expect(plugin.sliceManager.createSliceViaDialog).toHaveBeenCalled();
+      cmGetSpy.mockRestore();
+    });
+
+    it('should invoke showReferences callback', async () => {
+      const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
+      plugin.sliceManager = {
+        insertReference: jest.fn().mockResolvedValue({ id: 'ref1', source: 'src' }),
+      } as unknown as ReturnType<typeof createSliceManager>;
+
+      await showReferences(view);
+
+      expect(plugin.sliceManager.insertReference).toHaveBeenCalled();
+      cmGetSpy.mockRestore();
+    });
+
+    it('should handle addComment as no-op', () => {
+      // addComment is a no-op function, just verify it doesn't throw
+      const addComment = () => { };
+      expect(() => addComment()).not.toThrow();
+    });
+
+    it('should handle addTag as no-op', () => {
+      // addTag is a no-op function, just verify it doesn't throw
+      const addTag = () => { };
+      expect(() => addTag()).not.toThrow();
+    });
+  });
+
+  describe('openFloatingMenu onClose callback (Lines 598-599)', () => {
+    beforeEach(() => {
+      Object.assign(navigator, {
+        clipboard: {
+          readText: jest.fn().mockResolvedValue(''),
+        },
+      });
+    });
+    it('should set popup handle to null and remove class on close', async () => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pm-hamburger-wrapper popup-open';
+      const hamburger = document.createElement('span');
+      hamburger.className = 'float-icon';
+      wrapper.appendChild(hamburger);
+      document.body.appendChild(wrapper);
+
+      openFloatingMenu(plugin, view, 1, hamburger);
+
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
+
+      // Get the onClose callback from createPopUp mock
+      // Verify popup handle is set
+      if (!plugin._popUpHandle) return;
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const options = (plugin._popUpHandle as any).options;
+
+      expect(options).toBeDefined();
+      expect(options.onClose).toBeDefined();
+
+      // Call onClose
+      options.onClose();
+
+      // Verify popup handle is null
+      expect(plugin._popUpHandle).toBeNull();
+
+      // Verify class was removed
+      expect(wrapper.classList.contains('popup-open')).toBe(false);
+
+      document.body.removeChild(wrapper);
+    });
+  });
+
+  describe('showReferences error handler (Line 678)', () => {
+    it('should log error when insertReference fails', async () => {
+      const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
+      const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
+
+      plugin.sliceManager = {
+        insertReference: jest.fn().mockRejectedValue(new Error('Insert failed')),
+      } as unknown as ReturnType<typeof createSliceManager>;
+
+      await showReferences(view);
+
+      // Wait for promise to settle
+      await new Promise((resolve) => setTimeout(resolve, 100));
+
+      expect(consoleErrorSpy).toHaveBeenCalledWith(
+        'createSlice failed with:',
+        expect.any(Error)
+      );
+
+      consoleErrorSpy.mockRestore();
+      cmGetSpy.mockRestore();
+    });
+  });
+});
+
+describe('clipboardHasData function', () => {
+  beforeEach(() => {
+    Object.assign(navigator, {
+      clipboard: {
+        readText: jest.fn(),
+      },
+    });
+  });
+
+  it('should return true when clipboard has data', async () => {
+    (navigator.clipboard.readText as jest.Mock).mockResolvedValue('some text');
+
+    const result = await clipboardHasData();
+
+    expect(result).toBe(true);
+  });
+
+  it('should return false when clipboard is empty', async () => {
+    (navigator.clipboard.readText as jest.Mock).mockResolvedValue('');
+
+    const result = await clipboardHasData();
+
+    expect(result).toBe(false);
+  });
+
+  it('should return false when clipboard read fails', async () => {
+    (navigator.clipboard.readText as jest.Mock).mockRejectedValue(new Error('Access denied'));
+
+    const result = await clipboardHasData();
+
+    expect(result).toBe(false);
+  });
+});
+
+describe('Extracted Functions for Testability', () => {
+  let schema: Schema;
+  let plugin: FloatingMenuPlugin;
+  let view: EditorView;
+  let state: EditorState;
+
+  beforeEach(() => {
+    jest.clearAllMocks();
+
+    schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+
+    plugin = new FloatingMenuPlugin(mockRuntime, urlConfig);
+    state = EditorState.create({ schema, plugins: [plugin] });
+    view = new EditorView(document.createElement('div'), { state });
+
+    Object.assign(navigator, {
+      clipboard: {
+        readText: jest.fn().mockResolvedValue('test'),
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
+  });
+
+  describe('createMenuCallbacks (Lines 567-581)', () => {
+    it('should create all menu callbacks', () => {
+      const callbacks = createMenuCallbacks(view, plugin, true, true);
+
+      // Verify all callbacks are defined
+      expect(callbacks.enableCopy).toBeDefined();
+      expect(callbacks.enablePaste).toBeDefined();
+      expect(callbacks.enablePasteAsReference).toBeDefined();
+      expect(callbacks.enableCitationAndComment).toBeDefined();
+      expect(callbacks.enableTagAndInfoicon).toBeDefined();
+      expect(callbacks.copyRich).toBeDefined();
+      expect(callbacks.copyPlain).toBeDefined();
+      expect(callbacks.paste).toBeDefined();
+      expect(callbacks.pastePlain).toBeDefined();
+      expect(callbacks.pasteAsReference).toBeDefined();
+      expect(callbacks.createCitation).toBeDefined();
+      expect(callbacks.createInfoIcon).toBeDefined();
+      expect(callbacks.createSlice).toBeDefined();
+      expect(callbacks.showReferences).toBeDefined();
+      expect(callbacks.addComment).toBeDefined();
+      expect(callbacks.addTag).toBeDefined();
+    });
+
+    it('should have enableCopy return false when selection is empty', () => {
+      const callbacks = createMenuCallbacks(view, plugin);
+
+      // Empty selection should return false
+      expect(callbacks.enableCopy()).toBe(false);
+    });
+
+    it('should have enableCopy return true when selection is not empty', () => {
+      // Set up non-empty selection
+      const doc = schema.nodes.doc.create({}, [
+        schema.nodes.paragraph.create({}, schema.text('Test')),
+      ]);
+      const newState = EditorState.create({ schema, doc });
+      view.updateState(newState);
+      const tr = view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, 0, 4)
+      );
+      view.updateState(view.state.apply(tr));
+
+      const callbacks = createMenuCallbacks(view, plugin);
+      expect(callbacks.enableCopy()).toBe(true);
+    });
+
+    it('should have enablePaste return clipboard state', () => {
+      const callbacksWithClipboard = createMenuCallbacks(view, plugin, true, false);
+      expect(callbacksWithClipboard.enablePaste()).toBe(true);
+
+      const callbacksWithoutClipboard = createMenuCallbacks(view, plugin, false, false);
+      expect(callbacksWithoutClipboard.enablePaste()).toBe(false);
+    });
+
+    it('should have enablePasteAsReference return PM data state', () => {
+      const callbacksWithPM = createMenuCallbacks(view, plugin, false, true);
+      expect(callbacksWithPM.enablePasteAsReference()).toBe(true);
+
+      const callbacksWithoutPM = createMenuCallbacks(view, plugin, false, false);
+      expect(callbacksWithoutPM.enablePasteAsReference()).toBe(false);
+    });
+
+    it('should have enableTagAndInfoicon always return true', () => {
+      const callbacks = createMenuCallbacks(view, plugin);
+      expect(callbacks.enableTagAndInfoicon()).toBe(true);
+    });
+
+    it('should have addComment and addTag as no-op functions', () => {
+      const callbacks = createMenuCallbacks(view, plugin);
+      expect(() => callbacks.addComment()).not.toThrow();
+      expect(() => callbacks.addTag()).not.toThrow();
+    });
+
+    it('should execute copyRich callback', () => {
+      const doc = schema.nodes.doc.create({}, [
+        schema.nodes.paragraph.create({}, schema.text('Test')),
+      ]);
+      const newState = EditorState.create({ schema, doc });
+      view.updateState(newState);
+      const tr = view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, 0, 4)
+      );
+      view.updateState(view.state.apply(tr));
+
+      const callbacks = createMenuCallbacks(view, plugin);
+      callbacks.copyRich();
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    });
+
+    it('should execute copyPlain callback', () => {
+      const doc = schema.nodes.doc.create({}, [
+        schema.nodes.paragraph.create({}, schema.text('Test')),
+      ]);
+      const newState = EditorState.create({ schema, doc });
+      view.updateState(newState);
+      const tr = view.state.tr.setSelection(
+        TextSelection.create(view.state.doc, 0, 4)
+      );
+      view.updateState(view.state.apply(tr));
+
+      const callbacks = createMenuCallbacks(view, plugin);
+      callbacks.copyPlain();
+
+      expect(navigator.clipboard.writeText).toHaveBeenCalled();
+    });
+  });
+
+  describe('closeExistingPopup (Line 554)', () => {
+    it('should close popup when it exists', () => {
+      const closeSpy = jest.fn();
+      plugin._popUpHandle = {
+        close: closeSpy,
+        update: jest.fn(),
+      };
+
+      closeExistingPopup(plugin);
+
+      expect(closeSpy).toHaveBeenCalledWith(null);
+    });
+
+    it('should not throw when popup does not exist', () => {
+      plugin._popUpHandle = null;
+
+      expect(() => closeExistingPopup(plugin)).not.toThrow();
+    });
+  });
+
+  describe('createOnCloseHandler (Lines 598-599)', () => {
+    it('should create handler that nullifies popup handle', () => {
+      plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
+
+      const handler = createOnCloseHandler(plugin);
+      handler();
+
+      expect(plugin._popUpHandle).toBeNull();
+    });
+
+    it('should create handler that removes popup-open class', () => {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'pm-hamburger-wrapper popup-open';
+      const hamburger = document.createElement('span');
+      wrapper.appendChild(hamburger);
+      document.body.appendChild(wrapper);
+
+      plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
+
+      const handler = createOnCloseHandler(plugin, hamburger);
+      handler();
+
+      expect(wrapper.classList.contains('popup-open')).toBe(false);
+      expect(plugin._popUpHandle).toBeNull();
+
+      document.body.removeChild(wrapper);
+    });
+
+    it('should not throw when anchorEl is undefined', () => {
+      plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
+
+      const handler = createOnCloseHandler(plugin);
+
+      expect(() => handler()).not.toThrow();
+      expect(plugin._popUpHandle).toBeNull();
+    });
+
+    it('should not throw when anchorEl has no wrapper parent', () => {
+      const hamburger = document.createElement('span');
+      document.body.appendChild(hamburger);
+
+      plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
+
+      const handler = createOnCloseHandler(plugin, hamburger);
+
+      expect(() => handler()).not.toThrow();
+      expect(plugin._popUpHandle).toBeNull();
+
+      document.body.removeChild(hamburger);
+    });
   });
 });

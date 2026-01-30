@@ -3,10 +3,9 @@
  * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
  */
 
-// FloatingPopup.tsx
 import React from 'react';
 import { CustomButton } from '@modusoperandi/licit-ui-commands';
-import { FloatingMenuItem, FloatingMenuContext } from './FloatingMenuTypes';
+import { FloatingMenuItem, FloatingMenuContext } from './model';
 
 interface FloatingMenuProps {
   context: FloatingMenuContext;
