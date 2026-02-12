@@ -72,6 +72,7 @@ const mockRuntime: FloatRuntime = {
   insertInfoIconFloat: jest.fn(),
   insertCitationFloat: jest.fn(),
   insertReference: jest.fn(),
+  isReadonly: false,
 };
 const urlConfig = {
   instanceUrl: 'http://modusoperandi.com/editor/instance/',

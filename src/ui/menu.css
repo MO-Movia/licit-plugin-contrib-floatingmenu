@@ -23,10 +23,9 @@
 }
 
 .context-menu {   
-  background: white;
+  background: #d8d6d6;
   border: 1px solid #ccc;
   border-radius: 6px;
-  padding: 6px 8px;
   box-shadow: 0 2px 5px rgba(0,0,0,0.2);
   z-index: 10000;
 
@@ -36,13 +35,18 @@
   /* 👇 important fix */
   min-width: 180px;
   min-height: 40px;
+  padding-top:5px;
+  padding-bottom:5px;
+
 }
 
+.context-menu.dark{
+  background: #444
+}
 
 .context-menu__items {
   display: flex;
   flex-direction: column;
-  gap: 4px;
 }
 
 .ProseMirror[contenteditable="false"] .pm-hamburger-wrapper {

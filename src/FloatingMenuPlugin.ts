@@ -47,6 +47,7 @@ export class FloatingMenuPlugin extends Plugin {
   _urlConfig: UrlConfig | null = null;
   menuItems?: FloatingMenuItem[];
   sliceManager: ReturnType<typeof createSliceManager>;
+  sliceRuntime: FloatRuntime;
   constructor(sliceRuntime: FloatRuntime, urlConfig: UrlConfig = {}, menuItems?: FloatingMenuItem[]) {
     const sliceManager = createSliceManager(sliceRuntime);
     super({
@@ -141,6 +142,7 @@ export class FloatingMenuPlugin extends Plugin {
         return {};
       },
     });
+    this.sliceRuntime = sliceRuntime;
     this.menuItems = menuItems;
   }
 
@@ -610,6 +612,7 @@ export function openFloatingMenu(
         {
           context: ctx,
           items,
+          isReadonly: plugin.sliceRuntime.isReadonly,
         },
         {
           anchor: anchorEl || view.dom,

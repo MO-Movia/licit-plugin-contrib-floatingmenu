@@ -26,6 +26,8 @@ export interface FloatRuntime {
   insertCitationFloat(): void;
 
   insertReference(): Promise<SliceModel>;
+
+  isReadonly: boolean
 }
 
 
