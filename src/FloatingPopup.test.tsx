@@ -106,11 +106,13 @@ describe('FloatingMenu (UI)', () => {
     jest.clearAllMocks();
   });
 
-  function render(itemsOverride = items) {
+  function render(itemsOverride = items,
+  isReadonly = false) {
     ReactDOM.render(
       <FloatingMenu
         context={{} as unknown as FloatingMenuContext}
         items={itemsOverride}
+        isReadonly={isReadonly}
       />,
       container
     );
@@ -210,4 +212,20 @@ describe('FloatingMenu (UI)', () => {
     const buttons = container.querySelectorAll('button');
     expect(buttons.length).toBe(0);
   });
+
+  it('filters items in readonly mode', () => {
+    render(items, true); // ← important
+
+    const labels = Array.from(container.querySelectorAll('button')).map(
+    b => b.textContent
+    );
+
+    expect(labels).toEqual([
+    'Add Comment',
+    'Add Tag',
+    'Copy (Ctrl + C)',
+    'Copy Without Formatting',
+    'Create Referent',
+    ]);
+  }); 
 });
