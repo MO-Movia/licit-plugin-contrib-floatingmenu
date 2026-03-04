@@ -3,6 +3,8 @@
  * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
  */
 
+import { EditorState } from 'prosemirror-state';
+
 export interface SliceModel {
   name: string;
   description: string;
@@ -25,4 +27,18 @@ export interface FloatRuntime {
 
   insertReference(): Promise<SliceModel>;
 }
+
+
+export interface FloatingMenuContext {
+  editorState: EditorState;
+  paragraphPos?: number;
+}
+
+export interface FloatingMenuItem {
+  id: string;
+  label: string;
+  onClick: () => void;
+  isEnabled?: (ctx: FloatingMenuContext) => boolean;
+}
+
 
