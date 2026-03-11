@@ -52,7 +52,7 @@ describe('createSliceManager', () => {
     expect(manager.getDocSlices()).toEqual([]);
   });
 
-  it('should set slices filtering by doc objectId', () => {
+  it('should set slices filtering by doc objectId without duplicating cached slices', () => {
     const mockState = {
       doc: { attrs: { objectId: 'doc-1' } },
     } as unknown as EditorState;
@@ -62,6 +62,7 @@ describe('createSliceManager', () => {
       { id: 2, source: 'doc-2', from: 'node-2' },
     ] as unknown as SliceModel[];
 
+    manager.setSlices(slices, mockState);
     manager.setSlices(slices, mockState);
 
     const result = manager.getDocSlices();
@@ -166,5 +167,45 @@ describe('createSliceManager', () => {
     expect(mockDispatch).toHaveBeenCalledWith(mockTr);
 
     setNodeMarkupSpy.mockRestore();
+  });
+
+  it('should not dispatch when matching nodes are already marked as slice decorations', () => {
+    const mockDispatch = jest.fn();
+
+    const mockTr = {
+      setNodeMarkup: jest.fn().mockReturnThis(),
+    } as unknown as Transaction;
+
+    const mockNode = {
+      attrs: { objectId: 'node-1', isDeco: { isSlice: true } },
+    } as unknown as Node;
+
+    const mockView = {
+      state: {
+        tr: mockTr,
+        doc: {
+          descendants: (callback: (node: Node, pos: number) => void) => {
+            callback(mockNode, 42);
+          },
+        },
+      },
+      dispatch: mockDispatch,
+    } as unknown as EditorView;
+
+    manager.addSliceToList({
+      id: '1',
+      source: 'doc-1',
+      from: 'node-1',
+      to: 'node-1-end',
+      name: 'Test Slice',
+      description: 'Mock slice',
+      referenceType: 'mock',
+      ids: ['node-1'],
+    });
+
+    manager.setSliceAttrs(mockView);
+
+    expect(mockTr.setNodeMarkup).not.toHaveBeenCalled();
+    expect(mockDispatch).not.toHaveBeenCalled();
   });
 });
