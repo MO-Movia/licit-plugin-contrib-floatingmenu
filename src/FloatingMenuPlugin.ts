@@ -35,10 +35,53 @@ export const KEY_COPY = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-c');
 export const KEY_CUT = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-x');
 export const KEY_PASTE = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-v');
 export const KEY_PASTE_REF = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-Alt-v');
+const EMPTY_DECORATIONS = DecorationSet.empty;
 
 interface UrlConfig {
   instanceUrl?: string;
   referenceUrl?: string;
+}
+
+function stepAddsParagraph(content: unknown): boolean {
+  if (!Array.isArray(content)) {
+    return false;
+  }
+
+  return content.some((item) => {
+    if (!item || typeof item !== 'object') {
+      return false;
+    }
+
+    const node = item as { type?: string; content?: unknown };
+    return node.type === 'paragraph' || stepAddsParagraph(node.content);
+  });
+}
+
+function shouldRescanDecorations(tr: Transaction): boolean {
+  const forceRescan = typeof tr.getMeta === 'function'
+    ? tr.getMeta(CMPluginKey)?.forceRescan
+    : false;
+
+  if (forceRescan) {
+    return true;
+  }
+
+  return tr.steps.some((step) => {
+    const serializedStep = step.toJSON() as {
+      stepType?: string;
+      slice?: { content?: unknown };
+    };
+
+    if (serializedStep.stepType === 'setNodeMarkup' || serializedStep.stepType === 'replaceAround') {
+      return true;
+    }
+
+    if (serializedStep.stepType !== 'replace') {
+      return false;
+    }
+
+    return stepAddsParagraph(serializedStep.slice?.content);
+  });
 }
 
 export class FloatingMenuPlugin extends Plugin {
@@ -58,29 +101,22 @@ export class FloatingMenuPlugin extends Plugin {
           };
         },
         apply(tr, prev, _oldState, newState) {
-          let decos = prev.decorations;
+          const forceRescan = typeof tr.getMeta === 'function'
+            ? tr.getMeta(CMPluginKey)?.forceRescan
+            : false;
+          const mappedDecorations = prev.decorations
+            ? prev.decorations.map(tr.mapping, tr.doc)
+            : EMPTY_DECORATIONS;
 
-          if (!tr.docChanged) {
-            return { decorations: decos ? DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc) : decos };
+          if (!tr.docChanged && !forceRescan) {
+            return { decorations: mappedDecorations };
           }
 
-          decos = DecorationSet.prototype.map.call(decos, tr.mapping, tr.doc);
-
-          const requiresRescan =
-            tr.steps.some((step) => {
-              const s = step.toJSON();
-              return (
-                s.stepType === 'replace' ||
-                s.stepType === 'replaceAround' ||
-                s.stepType === 'setNodeMarkup'
-              );
-            }) || tr.getMeta(CMPluginKey)?.forceRescan;
-
-          if (requiresRescan) {
-            decos = getDecorations(tr.doc, newState);
+          if (shouldRescanDecorations(tr)) {
+            return { decorations: getDecorations(tr.doc, newState) };
           }
 
-          return { decorations: decos };
+          return { decorations: mappedDecorations };
         },
       },
       props: {
@@ -96,7 +132,7 @@ export class FloatingMenuPlugin extends Plugin {
         plugin._urlConfig = urlConfig;
         getDocSlices.call(plugin, view);
 
-        view.dom.addEventListener('pointerdown', (e) => {
+        const pointerDownHandler = (e: PointerEvent) => {
           const targetEl = getClosestHTMLElement(e.target, '.float-icon');
           if (!targetEl) return;
 
@@ -108,10 +144,11 @@ export class FloatingMenuPlugin extends Plugin {
 
           const pos = Number(targetEl.dataset.pos);
           openFloatingMenu(plugin, view, pos, targetEl);
-        });
+        };
+        view.dom.addEventListener('pointerdown', pointerDownHandler);
 
         // --- Alt + Right Click handler ---
-        view.dom.addEventListener('contextmenu', (e: MouseEvent) => {
+        const contextMenuHandler = (e: MouseEvent) => {
           if (e.altKey && e.button === 2 && view.editable) {
             e.preventDefault();
             e.stopPropagation();
@@ -123,7 +160,8 @@ export class FloatingMenuPlugin extends Plugin {
 
             openFloatingMenu(plugin, view, undefined, undefined, pos);
           }
-        });
+        };
+        view.dom.addEventListener('contextmenu', contextMenuHandler);
 
         // --- Close popup on outside click ---
         const outsideClickHandler = (e: MouseEvent) => {
@@ -138,7 +176,15 @@ export class FloatingMenuPlugin extends Plugin {
           }
         };
         document.addEventListener('click', outsideClickHandler);
-        return {};
+        return {
+          destroy() {
+            view.dom.removeEventListener('pointerdown', pointerDownHandler);
+            view.dom.removeEventListener('contextmenu', contextMenuHandler);
+            document.removeEventListener('click', outsideClickHandler);
+            closeExistingPopup(plugin);
+            plugin._view = null;
+          },
+        };
       },
     });
     this.menuItems = menuItems;
@@ -439,59 +485,75 @@ export function getDecorations(doc: Node, state: EditorState): DecorationSet {
   doc?.forEach( // NOSONAR not an iterable
     (node: Node, pos: number) => {
       if (node.type.name !== 'paragraph') return;
-      const wrapper = document.createElement('span');
-      wrapper.className = 'pm-hamburger-wrapper';
+      decorations.push(
+        Decoration.widget(
+          pos + 1,
+          () => {
+            const wrapper = document.createElement('span');
+            wrapper.className = 'pm-hamburger-wrapper';
 
-      const hamburger = document.createElement('span');
-      hamburger.className = 'float-icon fa fa-bars';
-      hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
-      hamburger.dataset.pos = String(pos);
+            const hamburger = document.createElement('span');
+            hamburger.className = 'float-icon fa fa-bars';
+            hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
+            hamburger.dataset.pos = String(pos);
 
-      wrapper.appendChild(hamburger);
-
-      decorations.push(Decoration.widget(pos + 1, wrapper, { side: 1 }));
+            wrapper.appendChild(hamburger);
+            return wrapper;
+          },
+          {
+            key: `float-icon-${node.attrs?.objectId ?? pos}`,
+            side: 1,
+          }
+        )
+      );
       const decoFlags = node.attrs?.isDeco;
       if (!decoFlags) return;
       if (decoFlags.isSlice || decoFlags.isTag || decoFlags.isComment) {
-        // --- Container for gutter marks ---
-        const container = document.createElement('span');
-        container.style.position = 'absolute';
-        container.style.left = '27px';
-        container.style.display = 'inline-flex';
-        container.style.gap = '6px';
-        container.style.alignItems = 'center';
-        container.contentEditable = 'false';
-        container.style.userSelect = 'none';
+        decorations.push(
+          Decoration.widget(
+            pos + 1,
+            () => {
+              const container = document.createElement('span');
+              container.style.position = 'absolute';
+              container.style.left = '27px';
+              container.style.display = 'inline-flex';
+              container.style.gap = '6px';
+              container.style.alignItems = 'center';
+              container.contentEditable = 'false';
+              container.style.userSelect = 'none';
 
-        // --- Slice ---
-        if (decoFlags.isSlice) {
-          const SliceMark = document.createElement('span');
-          SliceMark.id = `slicemark-${uuidv4()}`;
-          SliceMark.style.fontFamily = 'FontAwesome';
-          SliceMark.innerHTML = '&#xf097';
-          SliceMark.onclick = () => { };
-          container.appendChild(SliceMark);
-        }
+              if (decoFlags.isSlice) {
+                const sliceMark = document.createElement('span');
+                sliceMark.style.fontFamily = 'FontAwesome';
+                sliceMark.innerHTML = '&#xf097';
+                sliceMark.onclick = () => { };
+                container.appendChild(sliceMark);
+              }
 
-        // --- Tag ---
-        if (decoFlags.isTag) {
-          const TagMark = document.createElement('span');
-          TagMark.style.fontFamily = 'FontAwesome';
-          TagMark.innerHTML = '&#xf02b;';
-          TagMark.onclick = () => { };
-          container.appendChild(TagMark);
-        }
+              if (decoFlags.isTag) {
+                const tagMark = document.createElement('span');
+                tagMark.style.fontFamily = 'FontAwesome';
+                tagMark.innerHTML = '&#xf02b;';
+                tagMark.onclick = () => { };
+                container.appendChild(tagMark);
+              }
 
-        // --- Comment ---
-        if (decoFlags.isComment) {
-          const CommentMark = document.createElement('span');
-          CommentMark.style.fontFamily = 'FontAwesome';
-          CommentMark.innerHTML = '&#xf075;';
-          CommentMark.onclick = () => { };
-          container.appendChild(CommentMark);
-        }
+              if (decoFlags.isComment) {
+                const commentMark = document.createElement('span');
+                commentMark.style.fontFamily = 'FontAwesome';
+                commentMark.innerHTML = '&#xf075;';
+                commentMark.onclick = () => { };
+                container.appendChild(commentMark);
+              }
 
-        decorations.push(Decoration.widget(pos + 1, container, { side: -1 }));
+              return container;
+            },
+            {
+              key: `float-marks-${node.attrs?.objectId ?? pos}-${Number(!!decoFlags.isSlice)}${Number(!!decoFlags.isTag)}${Number(!!decoFlags.isComment)}`,
+              side: -1,
+            }
+          )
+        );
       }
     });
   return DecorationSet.create(state.doc, decorations);
@@ -657,6 +719,7 @@ export function changeAttribute(_view: EditorView): void {
   const from = _view.state.selection.$from.before(1);
   const node = _view.state.doc.nodeAt(from);
   if (!node) return; // early return if node does not exist
+  if (node.attrs?.isDeco?.isSlice) return;
   let tr = _view.state.tr;
   const newattrs = { ...node.attrs };
   const isDeco = { ...newattrs.isDeco };

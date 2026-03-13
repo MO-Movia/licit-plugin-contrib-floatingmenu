@@ -1312,6 +1312,16 @@ describe('changeAttribute', () => {
       isDeco: { isSlice: true },
     });
   });
+  it('should skip dispatch when the node is already marked as a slice decoration', () => {
+    viewMock.state.doc.nodeAt = jest.fn().mockReturnValue({
+      attrs: { isDeco: { isSlice: true, isTag: true } },
+    });
+
+    changeAttribute(viewMock);
+
+    expect(viewMock.state.tr.setNodeMarkup).not.toHaveBeenCalled();
+    expect(viewMock.dispatch).not.toHaveBeenCalled();
+  });
   it('should not call setNodeMarkup if no node exists at selection', () => {
     const stateMock = {
       selection: { from: 999 }, // non-existent
@@ -2163,6 +2173,90 @@ describe('Plugin state apply - Additional Coverage', () => {
     const newPluginState = plugin.getState(newState);
     expect(newPluginState?.decorations).toBeDefined();
   });
+
+  it('should reuse mapped decorations for text-only replace steps', () => {
+    const plugin = new FloatingMenuPlugin(mockRuntime, urlConfig);
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+    });
+
+    const doc = schema.nodes.doc.create({}, [
+      schema.nodes.paragraph.create({}, schema.text('init')),
+    ]);
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+    const tr = state.tr.insertText('x', 2, 2);
+    const mappedDecorations = { kind: 'mapped' } as unknown as DecorationSet;
+    const prevDecorations = {
+      map: jest.fn().mockReturnValue(mappedDecorations),
+    } as unknown as DecorationSet;
+
+    const applyFn = plugin.spec.state?.apply;
+    expect(applyFn).toBeDefined();
+    if (!applyFn) {
+      throw new Error('Plugin apply function is undefined');
+    }
+
+    const output = applyFn(
+      tr as unknown as Transaction,
+      { decorations: prevDecorations },
+      state,
+      state.apply(tr)
+    );
+
+    expect((prevDecorations as unknown as { map: jest.Mock }).map).toHaveBeenCalled();
+    expect(output.decorations).toBe(mappedDecorations);
+  });
+
+  it('should force a decoration rebuild even when the transaction does not change the doc', () => {
+    const plugin = new FloatingMenuPlugin(mockRuntime, urlConfig);
+    const schema = new Schema({
+      nodes: {
+        doc: { content: 'paragraph+' },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+    });
+
+    const doc = schema.nodes.doc.create({}, [
+      schema.nodes.paragraph.create({}, schema.text('init')),
+    ]);
+    const state = EditorState.create({ schema, doc, plugins: [plugin] });
+    const tr = state.tr.setMeta(CMPluginKey, { forceRescan: true });
+    const mappedDecorations = { kind: 'mapped' } as unknown as DecorationSet;
+    const prevDecorations = {
+      map: jest.fn().mockReturnValue(mappedDecorations),
+    } as unknown as DecorationSet;
+
+    const applyFn = plugin.spec.state?.apply;
+    expect(applyFn).toBeDefined();
+    if (!applyFn) {
+      throw new Error('Plugin apply function is undefined');
+    }
+
+    const output = applyFn(
+      tr as unknown as Transaction,
+      { decorations: prevDecorations },
+      state,
+      state.apply(tr)
+    );
+
+    expect(output.decorations).toBeInstanceOf(DecorationSet);
+    expect(output.decorations).not.toBe(mappedDecorations);
+  });
 });
 
 describe('copySelectionPlain - Additional Coverage', () => {
@@ -2268,10 +2362,10 @@ describe('FloatingMenuPlugin - 100% Coverage', () => {
   });
 
   // Test view return object
-  it('should return empty object from view function', () => {
+  it('should return a view lifecycle with destroy cleanup', () => {
     const viewFn = plugin.spec.view;
     const result = viewFn(view);
-    expect(result).toEqual({});
+    expect(result).toHaveProperty('destroy');
   });
 });
 
