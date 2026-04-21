@@ -4,3 +4,5 @@
  */
 
 export * from './FloatingMenuPlugin';
+export * from './FloatingMenuDefaults';
+export * from './model';

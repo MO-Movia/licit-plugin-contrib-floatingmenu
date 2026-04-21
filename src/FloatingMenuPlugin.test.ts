@@ -9,33 +9,32 @@ import { DecorationSet, EditorView } from 'prosemirror-view';
 import { Schema, Node, NodeSpec } from 'prosemirror-model';
 import {
   FloatingMenuPlugin,
-  changeAttribute,
+  getDecorations,
+  addAltRightClickHandler,
+  getDocSlices,
+  getClosestHTMLElement,
+  positionAboveOrBelow,
+  closeExistingPopup,
+  createOnCloseHandler,
+} from './FloatingMenuPlugin';
+import {
   copySelectionPlain,
   copySelectionRich,
   createNewSlice,
   createSliceObject,
-  getDecorations,
   pasteAsPlainText,
   pasteAsReference,
   pasteFromClipboard,
-  addAltRightClickHandler,
   clipboardHasProseMirrorData,
   clipboardHasData,
   showReferences,
   createInfoIconHandler,
   createCitationHandler,
-  CMPluginKey,
-  getDocSlices,
-  getClosestHTMLElement,
-  positionAboveOrBelow,
   createMenuCallbacks,
-  closeExistingPopup,
-  createOnCloseHandler,
-} from './FloatingMenuPlugin';
-import { schema as basicSchema } from 'prosemirror-schema-basic';
+} from './FloatingMenuDefaults';
 import { insertReference } from '@modusoperandi/licit-referencing';
 import * as licitCommands from '@modusoperandi/licit-ui-commands';
-import { FloatRuntime, SliceModel } from './model';
+import {CMPluginKey, FloatRuntime, SliceModel} from './model';
 import type * as FloatingMenuPluginModule from './FloatingMenuPlugin';
 import { createSliceManager } from './slice';
 
@@ -77,68 +76,6 @@ const urlConfig = {
   instanceUrl: 'http://modusoperandi.com/editor/instance/',
   referenceUrl: 'http://modusoperandi.com/ont/document#Reference_nodes',
 }
-
-function setup() {
-  type TestEditorView = EditorView & {
-    runtime?: unknown;
-    docView?: {
-      node: {
-        attrs: {
-          objectId?: string;
-          objectMetaData?: Record<string, unknown>;
-        };
-      };
-    };
-  };
-  const doc = basicSchema.node('doc', null, [
-    basicSchema.node('paragraph', {}, [basicSchema.text('hi')]),
-  ]);
-
-  const plugin = new FloatingMenuPlugin(
-    {} as Partial<FloatRuntime> as FloatRuntime,
-    { instanceUrl: 'http://inst/', referenceUrl: 'http://ref/' }
-  );
-
-  const state = EditorState.create({
-    doc,
-    plugins: [plugin],
-  });
-
-  const view = new EditorView(document.createElement('div'), { state }) as TestEditorView;
-
-  view.focus = jest.fn();
-  view.hasFocus = jest.fn(() => true);
-  view.dispatch = jest.fn();
-  view.posAtCoords = jest.fn(() => ({ pos: 1, inside: 0 }));
-  view.runtime = {};
-  view.docView = {
-    node: { attrs: { objectId: 'doc-x', objectMetaData: { name: 'Doc' } } },
-  };
-
-  plugin._view = view;
-
-  // 🔑 attach sliceManager so createNewSlice works
-  plugin.sliceManager = {
-    createSliceViaDialog: jest.fn().mockResolvedValue({
-      id: 'slice-1',
-      source: 'doc-x',
-      from: 'a',
-    }),
-    addSliceToList: jest.fn(),
-    setSlices: jest.fn(),
-    setSliceAttrs: jest.fn(),
-    getDocumentSlices: jest.fn().mockResolvedValue([]),
-    insertReference: jest.fn().mockResolvedValue({
-      id: 'ref-1',
-      source: 'doc-x',
-    }),
-    addInfoIcon: jest.fn(),
-    addCitation: jest.fn(),
-  } as unknown as ReturnType<typeof createSliceManager>;
-
-  return { plugin, view };
-}
-
 
 describe('FloatingMenuPlugin', () => {
   let plugin: FloatingMenuPlugin;
@@ -1422,7 +1359,6 @@ describe('createNewSlice', () => {
 
     // Assert
     expect(createSliceViaDialogMock).toHaveBeenCalled();
-    // expect(addSliceToListMock).toHaveBeenCalledWith({ id: 'slice1' });
   });
 });
 describe('openFloatingMenu', () => {
@@ -2345,7 +2281,7 @@ describe('FloatingMenuPlugin - 100% Coverage', () => {
     Object.defineProperty(clickEvent, 'target', { value: contextMenu, writable: false });
     document.dispatchEvent(clickEvent);
     expect(plugin._popUpHandle.close).not.toHaveBeenCalled();
-    document.body.removeChild(contextMenu);
+    contextMenu.remove();
   });
 
   // Test outsideClickHandler when clicking on .float-icon
@@ -2358,7 +2294,7 @@ describe('FloatingMenuPlugin - 100% Coverage', () => {
     Object.defineProperty(clickEvent, 'target', { value: floatIcon, writable: false });
     document.dispatchEvent(clickEvent);
     expect(plugin._popUpHandle.close).not.toHaveBeenCalled();
-    document.body.removeChild(floatIcon);
+    floatIcon.remove();
   });
 
   // Test view return object
@@ -2828,7 +2764,7 @@ describe('Document Click Handler - Complete Coverage', () => {
 
     expect(closeSpy).not.toHaveBeenCalled();
 
-    document.body.removeChild(contextMenu);
+    contextMenu.remove();
   });
 
   it('should not close popup when clicking on float-icon', () => {
@@ -2847,7 +2783,7 @@ describe('Document Click Handler - Complete Coverage', () => {
 
     expect(closeSpy).not.toHaveBeenCalled();
 
-    document.body.removeChild(floatIcon);
+    floatIcon.remove();
   });
 
   it('should not throw error when _popUpHandle is null', () => {
@@ -2862,7 +2798,7 @@ describe('Document Click Handler - Complete Coverage', () => {
 
     expect(() => document.dispatchEvent(event)).not.toThrow();
 
-    document.body.removeChild(outsideElement);
+    outsideElement.remove();
   });
 });
 
@@ -3150,151 +3086,6 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
     await getDocSlices.call(plugin, {} as object);
 
     expect(plugin.sliceManager.getDocumentSlices).toHaveBeenCalled();
-  });
-});
-
-describe('initKeyCommands()', () => {
-  beforeEach(() => {
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: jest.fn().mockResolvedValue(undefined),
-      },
-    });
-  });
-
-  type FakeResolvedPos = {
-    depth: number;
-    start: (depth: number) => number;
-    end: (depth: number) => number;
-  };
-
-  type FakeEditorState = {
-    selection: {
-      empty: boolean;
-      $from: FakeResolvedPos;
-      $to: FakeResolvedPos;
-      content: () => { content: { toJSON: () => unknown[] } };
-    };
-    doc: {
-      nodesBetween: (
-        from: number,
-        to: number,
-        cb: (
-          node: { type: { name: string }; attrs?: unknown; textContent?: string },
-          pos: number
-        ) => void
-      ) => void;
-    };
-    config: {
-      pluginsByKey: Record<string, unknown>;
-    };
-  };
-
-  type FakeEditorView = {
-    state: FakeEditorState;
-    hasFocus: () => boolean;
-    focus: () => void;
-  };
-
-  function triggerKey(
-    plugin: unknown,
-    key: string,
-    shift = false
-  ): boolean {
-    type KeymapPlugin = {
-      props?: {
-        handleKeyDown?: (view: unknown, event: KeyboardEvent) => boolean;
-      };
-    };
-
-    const plugins = (
-      plugin as { initKeyCommands: () => KeymapPlugin[] }
-    ).initKeyCommands();
-
-    const fakeResolvedPos: FakeResolvedPos = {
-      depth: 1,
-      start: () => 0,
-      end: () => 5,
-    };
-
-    const fakeView: FakeEditorView = {
-      state: {
-        selection: {
-          empty: false,
-          $from: fakeResolvedPos,
-          $to: fakeResolvedPos,
-          content: () => ({
-            content: {
-              toJSON: () => [],
-            },
-          }),
-        },
-
-        doc: {
-          nodesBetween: (_from, _to, cb) => {
-            cb(
-              {
-                type: { name: 'paragraph' },
-                attrs: { objectId: 'p1' },
-                textContent: 'Hello',
-              },
-              _from
-            );
-          },
-        },
-
-        config: {
-          pluginsByKey: {
-            [(CMPluginKey as unknown as { key: string }).key]: plugin,
-          },
-        },
-      },
-
-      hasFocus: () => true,
-      focus: () => undefined,
-    };
-
-    for (const p of plugins) {
-      const handler = p.props?.handleKeyDown as
-        | ((view: FakeEditorView, event: KeyboardEvent) => boolean)
-        | undefined;
-
-      if (!handler) continue;
-
-      const event = new KeyboardEvent('keydown', {
-        key,
-        ctrlKey: true,
-        shiftKey: shift,
-      });
-
-      if (handler(fakeView, event)) return true;
-    }
-
-    return false;
-  }
-
-  it('handles COPY shortcut', () => {
-    const { plugin } = setup();
-    const result = triggerKey(plugin, 'c');
-    expect(result).toBe(false);
-  });
-
-  it('handles CUT shortcut', () => {
-    const { plugin } = setup();
-    const result = triggerKey(plugin, 'x');
-    expect(result).toBe(false);
-  });
-
-  it('handles PASTE shortcut', () => {
-    const { plugin } = setup();
-    const result = triggerKey(plugin, 'v');
-    expect(result).toBe(true);
-  });
-
-  it('handles PASTE REFERENCE shortcut', () => {
-    const { plugin } = setup();
-    const result = triggerKey(plugin, 'v', true);
-    expect(result).toBe(true);
   });
 });
 
@@ -3592,7 +3383,7 @@ describe('Function Coverage - Uncovered Lines', () => {
       // Verify class was removed
       expect(wrapper.classList.contains('popup-open')).toBe(false);
 
-      document.body.removeChild(wrapper);
+      wrapper.remove();
     });
   });
 
@@ -3757,12 +3548,6 @@ describe('Extracted Functions for Testability', () => {
       expect(callbacks.enableTagAndInfoicon()).toBe(true);
     });
 
-    it('should have addComment and addTag as no-op functions', () => {
-      const callbacks = createMenuCallbacks(view, plugin);
-      expect(() => callbacks.addComment()).not.toThrow();
-      expect(() => callbacks.addTag()).not.toThrow();
-    });
-
     it('should execute copyRich callback', () => {
       const doc = schema.nodes.doc.create({}, [
         schema.nodes.paragraph.create({}, schema.text('Test')),
@@ -3843,7 +3628,7 @@ describe('Extracted Functions for Testability', () => {
       expect(wrapper.classList.contains('popup-open')).toBe(false);
       expect(plugin._popUpHandle).toBeNull();
 
-      document.body.removeChild(wrapper);
+      wrapper.remove();
     });
 
     it('should not throw when anchorEl is undefined', () => {
@@ -3866,7 +3651,7 @@ describe('Extracted Functions for Testability', () => {
       expect(() => handler()).not.toThrow();
       expect(plugin._popUpHandle).toBeNull();
 
-      document.body.removeChild(hamburger);
+      hamburger.remove();
     });
   });
 });

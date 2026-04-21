@@ -5,42 +5,20 @@
  */
 
 import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
-import { Node, Schema, Slice } from 'prosemirror-model';
-import { Plugin, PluginKey, EditorState, Transaction } from 'prosemirror-state';
+import {Node, Schema} from 'prosemirror-model';
+import {Plugin, EditorState, Transaction} from 'prosemirror-state';
 import {
   createPopUp,
   PopUpHandle,
   Rect
 } from '@modusoperandi/licit-ui-commands';
-import { FloatingMenu } from './FloatingPopup';
-import { v4 as uuidv4 } from 'uuid';
-import { insertReference } from '@modusoperandi/licit-referencing';
-import { createSliceManager } from './slice';
-import { FloatRuntime, FloatingMenuItem } from './model';
-import { createKeyMapPlugin, makeKeyMapWithCommon } from '@modusoperandi/licit-doc-attrs-step';
+import {FloatingMenu} from './FloatingPopup';
+import {CMPluginKey, FloatingMenuItem, type FloatingMenuContext} from './model';
+import {
+  createKeyMapPlugin,
+  makeKeyMapWithCommon,
+} from '@modusoperandi/licit-doc-attrs-step';
 import { getDefaultMenuItems } from './FloatingMenuDefaults';
-
-export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
-interface SliceModel {
-  name: string;
-  description: string;
-  id: string;
-  referenceType: string;
-  source: string;
-  from: string;
-  to: string;
-  ids: string[];
-}
-export const KEY_COPY = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-c');
-export const KEY_CUT = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-x');
-export const KEY_PASTE = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-v');
-export const KEY_PASTE_REF = makeKeyMapWithCommon('FloatingMenuPlugin', 'Mod-Alt-v');
-const EMPTY_DECORATIONS = DecorationSet.empty;
-
-interface UrlConfig {
-  instanceUrl?: string;
-  referenceUrl?: string;
-}
 
 function stepAddsParagraph(content: unknown): boolean {
   if (!Array.isArray(content)) {
@@ -58,11 +36,7 @@ function stepAddsParagraph(content: unknown): boolean {
 }
 
 function shouldRescanDecorations(tr: Transaction): boolean {
-  const forceRescan = typeof tr.getMeta === 'function'
-    ? tr.getMeta(CMPluginKey)?.forceRescan
-    : false;
-
-  if (forceRescan) {
+  if (tr.getMeta(CMPluginKey)?.forceRescan) {
     return true;
   }
 
@@ -86,37 +60,47 @@ function shouldRescanDecorations(tr: Transaction): boolean {
 
 export class FloatingMenuPlugin extends Plugin {
   _popUpHandle: PopUpHandle | null = null;
-  _view: EditorView | null = null;
-  _urlConfig: UrlConfig | null = null;
-  menuItems?: FloatingMenuItem[];
-  sliceManager: ReturnType<typeof createSliceManager>;
-  constructor(sliceRuntime: FloatRuntime, urlConfig: UrlConfig = {}, menuItems?: FloatingMenuItem[]) {
-    const sliceManager = createSliceManager(sliceRuntime);
+  /**
+   *
+   * @param menuItems Set of menu items to show
+   * @param decorationMarks Functions to create a set of optional paragraph decorators
+   */
+  constructor(
+    private readonly menuItems: FloatingMenuItem[] = getDefaultMenuItems(),
+    decorationMarks?: ((
+      node: Node,
+      pos: number,
+      state: EditorState
+    ) => Element | undefined)[]
+  ) {
     super({
       key: CMPluginKey,
       state: {
         init(_config, state) {
           return {
-            decorations: getDecorations(state.doc, state),
+            decorations: getDecorations(state.doc, state, decorationMarks),
           };
         },
         apply(tr, prev, _oldState, newState) {
-          const forceRescan = typeof tr.getMeta === 'function'
-            ? tr.getMeta(CMPluginKey)?.forceRescan
-            : false;
+          const forceRescan =
+            typeof tr.getMeta === 'function'
+              ? tr.getMeta(CMPluginKey)?.forceRescan
+              : false;
           const mappedDecorations = prev.decorations
             ? prev.decorations.map(tr.mapping, tr.doc)
-            : EMPTY_DECORATIONS;
+            : DecorationSet.empty;
 
           if (!tr.docChanged && !forceRescan) {
-            return { decorations: mappedDecorations };
+            return {decorations: mappedDecorations};
           }
 
           if (shouldRescanDecorations(tr)) {
-            return { decorations: getDecorations(tr.doc, newState) };
+            return {
+              decorations: getDecorations(tr.doc, newState, decorationMarks),
+            };
           }
 
-          return { decorations: mappedDecorations };
+          return {decorations: mappedDecorations};
         },
       },
       props: {
@@ -127,10 +111,6 @@ export class FloatingMenuPlugin extends Plugin {
       },
       view: (view) => {
         const plugin = this as FloatingMenuPlugin;
-        plugin._view = view;
-        plugin.sliceManager = sliceManager;
-        plugin._urlConfig = urlConfig;
-        getDocSlices.call(plugin, view);
 
         const pointerDownHandler = (e: PointerEvent) => {
           const targetEl = getClosestHTMLElement(e.target, '.float-icon');
@@ -139,11 +119,14 @@ export class FloatingMenuPlugin extends Plugin {
           e.preventDefault();
           e.stopPropagation();
 
-          const wrapper = getClosestHTMLElement(targetEl, '.pm-hamburger-wrapper');
+          const wrapper = getClosestHTMLElement(
+            targetEl,
+            '.pm-hamburger-wrapper'
+          );
           wrapper?.classList.add('popup-open');
 
           const pos = Number(targetEl.dataset.pos);
-          openFloatingMenu(plugin, view, pos, targetEl);
+          openFloatingMenu(plugin, view, menuItems, pos, targetEl);
         };
         view.dom.addEventListener('pointerdown', pointerDownHandler);
 
@@ -158,7 +141,14 @@ export class FloatingMenuPlugin extends Plugin {
               y: e ? e.clientY : 0,
             };
 
-            openFloatingMenu(plugin, view, undefined, undefined, pos);
+            openFloatingMenu(
+              plugin,
+              view,
+              menuItems,
+              undefined,
+              undefined,
+              pos
+            );
           }
         };
         view.dom.addEventListener('contextmenu', contextMenuHandler);
@@ -182,45 +172,24 @@ export class FloatingMenuPlugin extends Plugin {
             view.dom.removeEventListener('contextmenu', contextMenuHandler);
             document.removeEventListener('click', outsideClickHandler);
             closeExistingPopup(plugin);
-            plugin._view = null;
           },
         };
       },
     });
-    this.menuItems = menuItems;
   }
 
   public initKeyCommands(): Plugin[] {
-    return createKeyMapPlugin([
-      {
-        map: {
-          [KEY_COPY.common]: (_state, _dispatch, view) =>
-            copySelectionRich(view, this),
-        },
-        name: 'CopySlicePluginKeyCommands',
-      },
-      {
-        map: {
-          [KEY_CUT.common]: (_state, _dispatch, view) =>
-            copySelectionRich(view, this),
-        },
-        name: 'CutSlicePluginKeyCommands',
-      },
-      {
-        map: {
-          [KEY_PASTE.common]: (_state, _dispatch, view) =>
-            pasteFromClipboard(view, this),
-        },
-        name: 'PasteSlicePluginKeyCommands',
-      },
-      {
-        map: {
-          [KEY_PASTE_REF.common]: (_state, _dispatch, view) =>
-            pasteAsReference(view, this),
-        },
-        name: 'PasteReferencePluginKeyCommands',
-      },
-    ]) as Plugin[];
+    return createKeyMapPlugin(
+      this.menuItems
+        .filter((x) => x.hotKeys)
+        .map((item, index) => ({
+          map: {
+            [makeKeyMapWithCommon('FloatingMenuPlugin', item.hotKeys!).common]:
+              item.onClick,
+          },
+          name: 'FloatMenu_' + index + '_' + item.label,
+        }))
+    ) as Plugin[];
   }
 
   getEffectiveSchema(schema: Schema): Schema {
@@ -228,334 +197,59 @@ export class FloatingMenuPlugin extends Plugin {
   }
 }
 
-export function copySelectionRich(
-  view: EditorView,
-  plugin: FloatingMenuPlugin
-) {
-  const { state } = view;
-  if (state.selection.empty) return;
-
-  if (!view.hasFocus()) view.focus();
-
-  const slice = state.selection.content();
-
-  const sliceJSON = {
-    content: slice.content.toJSON(),
-    openStart: slice.openStart,
-    openEnd: slice.openEnd,
-    sliceModel: createSliceObject(view),
-  };
-
-  navigator.clipboard
-    .writeText(JSON.stringify(sliceJSON))
-    .then(() => { })
-    .catch((err) => console.error('Clipboard write failed', err));
-  if (plugin._popUpHandle) {
-    plugin._popUpHandle.update({
-      ...plugin._popUpHandle['props'],
-      pasteAsReferenceEnabled: true,
-    });
-  }
-  if (plugin._popUpHandle?.close) {
-    plugin._popUpHandle.close(null);
-    plugin._popUpHandle = null;
-  }
-}
-
-export function createSliceObject(editorView: EditorView): SliceModel {
-  const plugin = CMPluginKey.get(editorView.state) as FloatingMenuPlugin;
-  const referenceUrl = plugin?._urlConfig?.referenceUrl;
-  const instanceUrl = plugin?._urlConfig?.instanceUrl;
-  const sliceModel: SliceModel = {
-    name: '',
-    description: '',
-    id: '',
-    referenceType: '',
-    source: '',
-    from: '',
-    to: '',
-    ids: [],
-  };
-
-  editorView.focus();
-
-  const $from = editorView.state.selection.$from;
-  const $to = editorView.state.selection.$to;
-
-  const from = $from.start($from.depth);
-  const to = $to.end($to.depth);
-
-  const paragraphEntries: { pos: number; id?: string; text?: string }[] = [];
-
-  editorView.state.doc.nodesBetween(from, to, (node, pos) => {
-    if (node.type.name === 'paragraph') {
-      paragraphEntries.push({
-        pos,
-        id: node.attrs?.objectId,
-        text: node.textContent?.trim() || undefined,
-      });
-    }
-  });
-
-  paragraphEntries.sort((a, b) => a.pos - b.pos);
-  const objectIds = paragraphEntries
-    .filter(entry => entry.id !== undefined)
-    .map(entry => entry.id);
-
-  const firstParagraphText = paragraphEntries.find(entry => entry.text)?.text ?? '';
-
-  sliceModel.id = instanceUrl + uuidv4();
-  sliceModel.ids = objectIds;
-  sliceModel.from = objectIds.length > 0 ? objectIds[0] : '';
-  sliceModel.to = objectIds.length > 0 ? objectIds.at(-1) : '';
-
-  const viewWithDocView = editorView;
-  sliceModel.source = viewWithDocView?.['docView']?.node?.attrs?.objectId;
-  sliceModel.referenceType = referenceUrl;
-
-  const today = new Date().toISOString().split('T')[0];
-  const snippet = (firstParagraphText || 'Untitled').substring(0, 20);
-  sliceModel.name = `${snippet} - ${today}`;
-
-  return sliceModel;
-}
-
-export function copySelectionPlain(
-  view: EditorView,
-  plugin: FloatingMenuPlugin
-) {
-  if (!view.hasFocus()) {
-    view.focus();
-  }
-  const { from, to } = view.state.selection;
-  if (from === to) return;
-
-  const slice = view.state.doc.slice(from, to);
-  const text = slice.content.textBetween(0, slice.content.size, '\n');
-
-  navigator.clipboard
-    .writeText(text)
-    .then(() => { })
-    .catch((err) => console.error('Clipboard write failed:', err));
-  if (plugin._popUpHandle?.close) {
-    plugin._popUpHandle.close(null);
-    plugin._popUpHandle = null;
-  }
-}
-
-export async function pasteFromClipboard(
-  view: EditorView,
-  plugin: FloatingMenuPlugin
-) {
-  try {
-    if (!view.hasFocus()) view.focus();
-
-    const text = await navigator.clipboard.readText();
-    let tr: Transaction;
-
-    if (text.trim().startsWith('{') || text.trim().startsWith('[')) {
-      const parsed = JSON.parse(text);
-      const slice = Slice.fromJSON(view.state.schema, parsed);
-      tr = view.state.tr.replaceSelection(slice);
-    } else {
-      tr = view.state.tr.insertText(
-        text,
-        view.state.selection.from,
-        view.state.selection.to
-      );
-    }
-    view.dispatch(tr.scrollIntoView());
-  } catch (err) {
-    console.error('Clipboard paste failed:', err);
-  } finally {
-    if (plugin._popUpHandle?.close) {
-      plugin._popUpHandle.close(null);
-      plugin._popUpHandle = null;
-    }
-  }
-}
-
-export async function pasteAsReference(
-  view: EditorView,
-  plugin: FloatingMenuPlugin
-) {
-  try {
-    if (!view.hasFocus()) view.focus();
-    const text = await navigator.clipboard.readText();
-    const parsed = JSON.parse(text);
-    const sliceModel: SliceModel = parsed.sliceModel;
-
-    if (!plugin.sliceManager?.createSliceViaDialog) {
-      throw new Error(
-        'SliceManager or createSliceViaDialog is not initialized'
-      );
-    }
-
-    const val = await plugin.sliceManager.createSliceViaDialog(sliceModel);
-    if (!val) {
-      return;
-    }
-    insertReference(
-      view,
-      val.id,
-      val.source,
-      view['docView']?.node?.attrs?.objectMetaData?.name,
-      val.from
-    );
-  } catch (err) {
-    console.error('Failed to paste content or create slice:', err);
-  } finally {
-    if (plugin._popUpHandle?.close) {
-      plugin._popUpHandle.close(null);
-      plugin._popUpHandle = null;
-    }
-  }
-}
-
-export async function pasteAsPlainText(
-  view: EditorView,
-  plugin: FloatingMenuPlugin
-) {
-  try {
-    if (!view.hasFocus()) view.focus();
-
-    const text = await navigator.clipboard.readText();
-    let plainText = text;
-
-    try {
-      const parsed = JSON.parse(text);
-      const slice = Slice.fromJSON(view.state.schema, parsed);
-
-      const frag = slice.content;
-      plainText = '';
-      frag.forEach((node) => { // NOSONAR not an iterable
-        plainText += node.textContent + '\n';
-      });
-      plainText = plainText.trim();
-    } catch {
-      // Not JSON → just keep as is
-    }
-
-    const { state } = view;
-    const tr = state.tr.insertText(
-      plainText,
-      state.selection.from,
-      state.selection.to
-    );
-    view.dispatch(tr.scrollIntoView());
-  } catch (err) {
-    console.error('Plain text paste failed:', err);
-  }
-
-  if (plugin._popUpHandle?.close) {
-    plugin._popUpHandle.close(null);
-    plugin._popUpHandle = null;
-  }
-}
-
-export async function clipboardHasData(): Promise<boolean> {
-  try {
-    const text = await navigator.clipboard.readText();
-    return !!text;
-  } catch {
-    return false;
-  }
-}
-
-export async function clipboardHasProseMirrorData(): Promise<boolean> {
-  try {
-    const text = await navigator.clipboard.readText();
-    if (!text) return false;
-    const parsed = JSON.parse(text);
-    return !!(
-      parsed &&
-      typeof parsed === 'object' &&
-      parsed.content &&
-      (Array.isArray(parsed.content) || parsed.content.type)
-    );
-  } catch {
-    return false;
-  }
-}
-
 // --- Decoration function ---
-export function getDecorations(doc: Node, state: EditorState): DecorationSet {
+export function getDecorations(doc: Node, state: EditorState, decorationMarks?: ((node: Node, pos: number, state: EditorState) => Element | undefined)[]): DecorationSet {
   const decorations: Decoration[] = [];
 
-  doc?.forEach( // NOSONAR not an iterable
-    (node: Node, pos: number) => {
-      if (node.type.name !== 'paragraph') return;
-      decorations.push(
-        Decoration.widget(
-          pos + 1,
-          () => {
-            const wrapper = document.createElement('span');
-            wrapper.className = 'pm-hamburger-wrapper';
+  doc?.forEach((node: Node, pos: number) => {
+    if (node.type.name !== 'paragraph') return;
+    decorations.push(
+      Decoration.widget(
+        pos + 1,
+        () => {
+          const wrapper = document.createElement('span');
+          wrapper.className = 'pm-hamburger-wrapper';
 
-            const hamburger = document.createElement('span');
-            hamburger.className = 'float-icon fa fa-bars';
-            hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
-            hamburger.dataset.pos = String(pos);
+          const hamburger = document.createElement('span');
+          hamburger.className = 'float-icon fa fa-bars';
+          hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
+          hamburger.dataset.pos = String(pos);
 
-            wrapper.appendChild(hamburger);
-            return wrapper;
-          },
-          {
-            key: `float-icon-${node.attrs?.objectId ?? pos}`,
-            side: 1,
-          }
-        )
-      );
-      const decoFlags = node.attrs?.isDeco;
-      if (!decoFlags) return;
-      if (decoFlags.isSlice || decoFlags.isTag || decoFlags.isComment) {
-        decorations.push(
-          Decoration.widget(
-            pos + 1,
-            () => {
-              const container = document.createElement('span');
-              container.style.position = 'absolute';
-              container.style.left = '27px';
-              container.style.display = 'inline-flex';
-              container.style.gap = '6px';
-              container.style.alignItems = 'center';
-              container.contentEditable = 'false';
-              container.style.userSelect = 'none';
+          wrapper.appendChild(hamburger);
+          return wrapper;
+        },
+        {
+          key: `float-icon-${node.attrs?.objectId ?? pos}`,
+          side: 1,
+        }
+      )
+    );
+    const decoFlags = decorationMarks?.map(fn => fn(node, pos, state)).filter(x => !!x);
+    if (!decoFlags?.length) return;
+    decorations.push(
+      Decoration.widget(
+        pos + 1,
+        () => {
+          const container = document.createElement('span');
+          container.style.position = 'absolute';
+          container.style.left = '27px';
+          container.style.display = 'inline-flex';
+          container.style.gap = '6px';
+          container.style.alignItems = 'center';
+          container.contentEditable = 'false';
+          container.style.userSelect = 'none';
 
-              if (decoFlags.isSlice) {
-                const sliceMark = document.createElement('span');
-                sliceMark.style.fontFamily = 'FontAwesome';
-                sliceMark.innerHTML = '&#xf097';
-                sliceMark.onclick = () => { };
-                container.appendChild(sliceMark);
-              }
+          decoFlags.forEach((decoFlag) => container.appendChild(decoFlag));
 
-              if (decoFlags.isTag) {
-                const tagMark = document.createElement('span');
-                tagMark.style.fontFamily = 'FontAwesome';
-                tagMark.innerHTML = '&#xf02b;';
-                tagMark.onclick = () => { };
-                container.appendChild(tagMark);
-              }
-
-              if (decoFlags.isComment) {
-                const commentMark = document.createElement('span');
-                commentMark.style.fontFamily = 'FontAwesome';
-                commentMark.innerHTML = '&#xf075;';
-                commentMark.onclick = () => { };
-                container.appendChild(commentMark);
-              }
-
-              return container;
-            },
-            {
-              key: `float-marks-${node.attrs?.objectId ?? pos}-${Number(!!decoFlags.isSlice)}${Number(!!decoFlags.isTag)}${Number(!!decoFlags.isComment)}`,
-              side: -1,
-            }
-          )
-        );
-      }
-    });
+          return container;
+        },
+        {
+          key: `float-marks-${node.attrs?.objectId ?? pos}`,
+          side: -1,
+        }
+      )
+    );
+  });
   return DecorationSet.create(state.doc, decorations);
 }
 
@@ -605,36 +299,11 @@ export function positionAboveOrBelow(anchorRect?: Rect, bodyRect?: Rect): Rect {
   };
 }
 
-export function createMenuCallbacks(
-  view: EditorView,
-  plugin: FloatingMenuPlugin,
-  hasClipboard = true,
-  hasPM = true
-) {
-  return {
-    enableCopy: () => !view.state.selection.empty,
-    enablePaste: () => hasClipboard,
-    enablePasteAsReference: () => hasPM,
-    enableCitationAndComment: () => !view.state.selection.empty,
-    enableTagAndInfoicon: () => true,
-    copyRich: () => copySelectionRich(view, plugin),
-    copyPlain: () => copySelectionPlain(view, plugin),
-    paste: () => pasteFromClipboard(view, plugin),
-    pastePlain: () => pasteAsPlainText(view, plugin),
-    pasteAsReference: () => pasteAsReference(view, plugin),
-    createCitation: () => createCitationHandler(view),
-    createInfoIcon: () => createInfoIconHandler(view),
-    createSlice: () => createNewSlice(view),
-    showReferences: () => showReferences(view),
-    addComment: () => { },
-    addTag: () => { },
-  };
-}
-
-export function closeExistingPopup(plugin: FloatingMenuPlugin): void {
-  if (plugin._popUpHandle) {
-    plugin._popUpHandle.close(null);
-  }
+export function closeExistingPopup(
+  this: void,
+  plugin: FloatingMenuPlugin
+): void {
+  plugin._popUpHandle?.close(null);
 }
 
 export function createOnCloseHandler(
@@ -650,133 +319,37 @@ export function createOnCloseHandler(
 export function openFloatingMenu(
   plugin: FloatingMenuPlugin,
   view: EditorView,
+  items: FloatingMenuItem[],
   pos?: number,
   anchorEl?: HTMLElement,
-  contextPos?: { x: number; y: number }
+  contextPos?: {x: number; y: number}
 ) {
   closeExistingPopup(plugin);
 
-  Promise.all([clipboardHasProseMirrorData(), clipboardHasData()])
-    .then(([hasPM, hasClipboard]) => {
-      const ctx = {
-        editorState: view.state,
-        paragraphPos: pos,
-      };
+  const ctx: FloatingMenuContext = {
+    editorView: view,
+    editorState: view.state,
+    paragraphPos: pos,
+  };
 
-      const items =
-        plugin.menuItems ??
-        getDefaultMenuItems(createMenuCallbacks(view, plugin, hasClipboard, hasPM));
-
-      plugin._popUpHandle = createPopUp(
-        FloatingMenu,
-        {
-          context: ctx,
-          items,
-        },
-        {
-          anchor: anchorEl || view.dom,
-          contextPos,
-          position: positionAboveOrBelow,
-          autoDismiss: false,
-          onClose: createOnCloseHandler(plugin, anchorEl),
-        }
-      );
-    })
-    .catch((err) => {
-      console.error('Failed to open floating menu:', err);
-    });
-}
-
-export function addAltRightClickHandler(
-  view: EditorView,
-  plugin: FloatingMenuPlugin
-) {
-  view.dom.addEventListener('contextmenu', (e: MouseEvent) => {
-    if (e.altKey && e.button === 2) {
-      e.preventDefault();
-      e.stopPropagation();
-
-      const pos = view.posAtCoords({ left: e.clientX, top: e.clientY })?.pos;
-      if (pos == null) return;
-
-      openFloatingMenu(plugin, view, pos);
+  plugin._popUpHandle = createPopUp(
+    FloatingMenu,
+    {
+      context: ctx,
+      items,
+      close: closeExistingPopup.bind(undefined, plugin),
+    },
+    {
+      anchor: anchorEl || view.dom,
+      contextPos,
+      position: positionAboveOrBelow,
+      autoDismiss: false,
+      onClose: createOnCloseHandler(plugin, anchorEl),
     }
-  });
+  );
 }
 
-// To retrieve all the document slices from the server and cache it.
-export async function getDocSlices(this: FloatingMenuPlugin, view: EditorView) {
-  try {
-    const result = await this.sliceManager?.getDocumentSlices(view);
-    this.sliceManager?.setSlices(result, view.state);
-    this.sliceManager?.setSliceAttrs(view);
-  } catch (err) {
-    console.error('Failed to load slices:', err);
-  }
-}
-
-export function changeAttribute(_view: EditorView): void {
-  const from = _view.state.selection.$from.before(1);
-  const node = _view.state.doc.nodeAt(from);
-  if (!node) return; // early return if node does not exist
-  if (node.attrs?.isDeco?.isSlice) return;
-  let tr = _view.state.tr;
-  const newattrs = { ...node.attrs };
-  const isDeco = { ...newattrs.isDeco };
-  isDeco.isSlice = true;
-  newattrs.isDeco = isDeco;
-  tr = tr.setNodeMarkup(from, undefined, newattrs);
-  _view.dispatch(tr);
-}
-
-export function createNewSlice(view: EditorView): void {
-  const sliceModel = createSliceObject(view);
-  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
-  if (!plugin) return;
-
-  plugin.sliceManager
-    .createSliceViaDialog(sliceModel)
-    .then((val) => {
-      plugin.sliceManager.addSliceToList(val);
-      changeAttribute(view);
-    })
-    .catch((err) => {
-      console.error('createSlice failed with:', err);
-    });
-}
-
-export function showReferences(view: EditorView): Promise<void> {
-  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
-  if (!plugin) return;
-  plugin.sliceManager
-    .insertReference()
-    .then((val) => {
-      insertReference(
-        view,
-        val.id,
-        val.source,
-        view['docView']?.node?.attrs?.objectMetaData?.name,
-        val.from
-      );
-    })
-    .catch((err) => {
-      console.error('createSlice failed with:', err);
-    });
-}
-
-export function createInfoIconHandler(view: EditorView): void {
-  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
-  if (!plugin) return;
-  plugin.sliceManager?.addInfoIcon();
-}
-
-export function createCitationHandler(view: EditorView): void {
-  const plugin = CMPluginKey.get(view.state) as FloatingMenuPlugin;
-  if (!plugin) return;
-  plugin.sliceManager?.addCitation();
-}
-
-export function getClosestHTMLElement(
+function getClosestHTMLElement(
   el: EventTarget | null,
   selector: string
 ): HTMLElement | null {

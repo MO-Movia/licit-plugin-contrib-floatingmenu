@@ -10,26 +10,34 @@ import { FloatingMenuItem, FloatingMenuContext } from './model';
 interface FloatingMenuProps {
   context: FloatingMenuContext;
   items: FloatingMenuItem[];
+  close: () => unknown;
 }
 
 export class FloatingMenu extends React.PureComponent<FloatingMenuProps> {
   render(): React.ReactNode {
-    const { context, items } = this.props;
+    const {context, items, close} = this.props;
 
     return (
-      <div className="context-menu" role="menu" tabIndex={-1}>
+      <div className="context-menu" role="menu">
         <div className="context-menu__items">
-          {items.map((item) => {
-            const enabled = item.isEnabled
-              ? item.isEnabled(context)
-              : true;
+          {items.map((item, index) => {
+            const disabled = item.disabled ? item.disabled(context) : false;
 
             return (
               <CustomButton
-                key={item.id}
-                label={item.label}
-                disabled={!enabled}
-                onClick={item.onClick}
+                key={'FloatingMenuItem_' + index}
+                label={
+                  item.label + (disabled ? ' (' + String(disabled) + ')' : '')
+                }
+                disabled={!!disabled}
+                onClick={() => {
+                  close();
+                  item.onClick(
+                    context.editorView.state,
+                    context.editorView.dispatch,
+                    context.editorView
+                  );
+                }}
               />
             );
           })}

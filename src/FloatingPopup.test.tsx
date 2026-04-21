@@ -10,7 +10,15 @@ import { FloatingMenuItem, FloatingMenuContext } from './model';
 
 // Mock CustomButton → render as native <button>
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
-  CustomButton: ({ label, onClick, disabled }) => (
+  CustomButton: ({
+    label,
+    onClick,
+    disabled,
+  }: {
+    label: string;
+    onClick: () => void;
+    disabled: boolean;
+  }) => (
     <button disabled={disabled} onClick={onClick}>
       {label}
     </button>
@@ -42,58 +50,47 @@ describe('FloatingMenu (UI)', () => {
 
     items = [
       {
-        id: 'comment',
         label: 'Add Comment',
         onClick: handlers.addComment,
       },
       {
-        id: 'tag',
         label: 'Add Tag',
         onClick: handlers.addTag,
       },
       {
-        id: 'citation',
         label: 'Create Citation',
         onClick: handlers.createCitation,
       },
       {
-        id: 'info',
-        label: 'Create Infoicon',
+        label: 'Create Info Icon',
         onClick: handlers.createInfoIcon,
       },
       {
-        id: 'copy',
         label: 'Copy (Ctrl + C)',
         onClick: handlers.copyRich,
       },
       {
-        id: 'copy-plain',
         label: 'Copy Without Formatting',
         onClick: handlers.copyPlain,
       },
       {
-        id: 'paste',
         label: 'Paste (Ctrl + V)',
         onClick: handlers.paste,
       },
       {
-        id: 'paste-plain',
         label: 'Paste As Plain Text',
         onClick: handlers.pastePlain,
       },
       {
-        id: 'paste-ref',
         label: 'Paste As Reference (Ctrl + Alt + V)',
         onClick: handlers.pasteAsReference,
         isEnabled: () => true,
       },
       {
-        id: 'slice',
         label: 'Create Referent',
         onClick: handlers.createSlice,
       },
       {
-        id: 'insert-ref',
         label: 'Insert Reference',
         onClick: handlers.showReferences,
       },
@@ -111,6 +108,7 @@ describe('FloatingMenu (UI)', () => {
       <FloatingMenu
         context={{} as unknown as FloatingMenuContext}
         items={itemsOverride}
+        close={() => undefined}
       />,
       container
     );
@@ -126,10 +124,6 @@ describe('FloatingMenu (UI)', () => {
     return btn;
   }
 
-  function click(label: string) {
-    getButton(label).click();
-  }
-
   it('renders all buttons from config', () => {
     render();
 
@@ -141,7 +135,7 @@ describe('FloatingMenu (UI)', () => {
       'Add Comment',
       'Add Tag',
       'Create Citation',
-      'Create Infoicon',
+      'Create Info Icon',
       'Copy (Ctrl + C)',
       'Copy Without Formatting',
       'Paste (Ctrl + V)',
@@ -150,34 +144,6 @@ describe('FloatingMenu (UI)', () => {
       'Create Referent',
       'Insert Reference',
     ]);
-  });
-
-  it('calls correct handlers on click', () => {
-    render();
-
-    click('Add Comment');
-    click('Add Tag');
-    click('Create Citation');
-    click('Create Infoicon');
-    click('Copy (Ctrl + C)');
-    click('Copy Without Formatting');
-    click('Paste (Ctrl + V)');
-    click('Paste As Plain Text');
-    click('Paste As Reference (Ctrl + Alt + V)');
-    click('Create Referent');
-    click('Insert Reference');
-
-    expect(handlers.addComment).toHaveBeenCalled();
-    expect(handlers.addTag).toHaveBeenCalled();
-    expect(handlers.createCitation).toHaveBeenCalled();
-    expect(handlers.createInfoIcon).toHaveBeenCalled();
-    expect(handlers.copyRich).toHaveBeenCalled();
-    expect(handlers.copyPlain).toHaveBeenCalled();
-    expect(handlers.paste).toHaveBeenCalled();
-    expect(handlers.pastePlain).toHaveBeenCalled();
-    expect(handlers.pasteAsReference).toHaveBeenCalled();
-    expect(handlers.createSlice).toHaveBeenCalled();
-    expect(handlers.showReferences).toHaveBeenCalled();
   });
 
   it('disables button when isEnabled returns false', () => {

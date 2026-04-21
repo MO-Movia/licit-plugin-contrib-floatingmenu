@@ -44,7 +44,3 @@
   flex-direction: column;
   gap: 4px;
 }
-
-.ProseMirror[contenteditable="false"] .pm-hamburger-wrapper {
-  display: none !important;
-}
