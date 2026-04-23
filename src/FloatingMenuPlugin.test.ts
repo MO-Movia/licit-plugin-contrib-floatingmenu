@@ -21,7 +21,7 @@ import {
   copySelectionPlain,
   copySelectionRich,
   createNewSlice,
-  createSliceObject,
+  createSourceContext,
   pasteAsPlainText,
   pasteAsReference,
   pasteFromClipboard,
@@ -306,7 +306,7 @@ describe('createSliceObject', () => {
       referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes',
       description: '',
     };
-    (createSliceObject as jest.Mock).mockReturnValue(sliceModelMock);
+    (createSourceContext as jest.Mock).mockReturnValue(sliceModelMock);
 
     expect(sliceModelMock.ids).toEqual('slice1');
     expect(sliceModelMock.from).toBe('slice1');
@@ -341,7 +341,7 @@ describe('createSliceObject', () => {
       node: { attrs: { objectId: 'sourceObj' } },
     };
 
-    const slice = createSliceObject(view);
+    const slice = createSourceContext(view);
 
     expect(slice.ids).toEqual('slice1');
     expect(slice.from).toBe('slice1');
@@ -1043,7 +1043,7 @@ describe('createNewSlice,showReferences', () => {
       referenceType: 'http://modusoperandi.com/ont/document#Reference_nodes',
       description: '',
     };
-    (createSliceObject as jest.Mock).mockReturnValue(sliceModelMock);
+    (createSourceContext as jest.Mock).mockReturnValue(sliceModelMock);
     const createSliceViaDialogMock = jest.fn().mockResolvedValue({ id: 'slice1' });
     const addSliceToListMock = jest.fn();
     const insertReferenceMock = jest.fn();
@@ -1779,9 +1779,9 @@ describe('createSliceObject - Additional Coverage', () => {
     const state = EditorState.create({ schema, doc });
     view = new EditorView(document.createElement('div'), { state });
 
-    (createSliceObject as jest.Mock).mockRestore();
+    (createSourceContext as jest.Mock).mockRestore();
 
-    const slice = createSliceObject(view);
+    const slice = createSourceContext(view);
 
     expect(slice).toBeUndefined();
   });

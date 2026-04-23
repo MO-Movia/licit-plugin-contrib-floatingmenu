@@ -9,27 +9,12 @@ import type {FloatingMenuPlugin} from './FloatingMenuPlugin';
 
 export const CMPluginKey = new PluginKey<FloatingMenuPlugin>('floating-menu');
 
-export interface SliceModel {
-  name: string;
-  description: string;
-  id: string;
-  referenceType: string;
+export interface SourceContext {
   source: string;
   from: string;
   to: string;
   ids: string[];
-}
-
-export interface FloatRuntime {
-  createSlice(slice: SliceModel): Promise<SliceModel>;
-
-  retrieveSlices(): Promise<SliceModel[]>;
-
-  insertInfoIconFloat(): void;
-
-  insertCitationFloat(): void;
-
-  insertReference(): Promise<SliceModel>;
+  initialText: string;
 }
 
 

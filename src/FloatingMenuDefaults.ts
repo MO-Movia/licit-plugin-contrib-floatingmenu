@@ -4,7 +4,11 @@
  */
 
 import {EditorView} from 'prosemirror-view';
-import {FloatingMenuItem, type FloatingMenuContext} from './model';
+import {
+  FloatingMenuItem,
+  type FloatingMenuContext,
+  type SourceContext,
+} from './model';
 import {Slice} from 'prosemirror-model';
 import type {EditorState, Transaction} from 'prosemirror-state';
 
@@ -20,6 +24,12 @@ export interface MenuConfig {
 
 export function getDefaultMenuItems(config?: MenuConfig): FloatingMenuItem[] {
   return [
+    {
+      label: 'Copy (Ctrl + C)',
+      disabled: editorHasTextSelection,
+      onClick: copySelectionRich,
+      hotKeys: 'Mod-c',
+    },
     {
       label: 'Copy Without Formatting',
       disabled: editorHasTextSelection,
@@ -39,6 +49,32 @@ export function getDefaultMenuItems(config?: MenuConfig): FloatingMenuItem[] {
       onClick: pasteAsPlainText,
     },
   ];
+}
+
+export function copySelectionRich(
+  this: void,
+  _state: EditorState,
+  _dispatch: (tr: Transaction) => void,
+  view: EditorView
+) {
+  const {state} = view;
+  if (state.selection.empty) return;
+
+  if (!view.hasFocus()) view.focus();
+
+  const slice = state.selection.content();
+
+  const sliceJSON = {
+    content: slice.content.toJSON(),
+    openStart: slice.openStart,
+    openEnd: slice.openEnd,
+    sourceContext: createSourceContext(view),
+  };
+
+  navigator.clipboard
+    .writeText(JSON.stringify(sliceJSON))
+    .then(() => {})
+    .catch((err) => console.error('Clipboard write failed', err));
 }
 
 export function copySelectionPlain(
@@ -152,4 +188,51 @@ export async function clipboardHasProseMirrorData(): Promise<boolean> {
   } catch {
     return false;
   }
+}
+
+export function createSourceContext(
+  editorView: EditorView,
+  textPreviewLength = 20
+): SourceContext {
+  editorView.focus();
+
+  const $from = editorView.state.selection.$from;
+  const $to = editorView.state.selection.$to;
+
+  const from = $from.start($from.depth);
+  const to = $to.end($to.depth);
+
+  const paragraphEntries: {pos: number; id?: string; text?: string}[] = [];
+
+  editorView.state.doc.nodesBetween(from, to, (node, pos) => {
+    if (node.type.name === 'paragraph') {
+      paragraphEntries.push({
+        pos,
+        id: node.attrs?.objectId,
+        text: node.textContent?.trim() || undefined,
+      });
+    }
+  });
+
+  paragraphEntries.sort((a, b) => a.pos - b.pos);
+  const objectIds = paragraphEntries
+    .map((entry) => entry.id)
+    .filter((id) => id !== undefined);
+
+  const firstParagraphText =
+    paragraphEntries.find((entry) => entry.text)?.text ?? '';
+
+  const initialText = (firstParagraphText || 'Untitled').substring(
+    0,
+    textPreviewLength
+  );
+
+  const sliceModel: SourceContext = {
+    source: editorView.state.doc?.attrs?.objectId,
+    from: objectIds.length > 0 ? objectIds[0] : '',
+    to: objectIds.length > 0 ? objectIds.at(-1)! : '',
+    ids: objectIds,
+    initialText,
+  };
+  return sliceModel;
 }
