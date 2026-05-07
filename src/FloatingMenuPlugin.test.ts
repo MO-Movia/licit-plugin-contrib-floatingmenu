@@ -6,7 +6,7 @@
 import { EditorState, TextSelection, Transaction } from 'prosemirror-state';
 
 import { DecorationSet, EditorView } from 'prosemirror-view';
-import { Schema, Node, NodeSpec } from 'prosemirror-model';
+import { Schema, Node } from 'prosemirror-model';
 import {
   FloatingMenuPlugin,
   changeAttribute,
@@ -67,7 +67,7 @@ jest.mock('./slice', () => ({
 }));
 
 const mockRuntime: FloatRuntime = {
-  createSlice: jest.fn().mockResolvedValue({} as SliceModel), // mock return value as needed
+  createSlice: jest.fn().mockResolvedValue({}), // mock return value as needed
   retrieveSlices: jest.fn().mockResolvedValue([]),
   insertInfoIconFloat: jest.fn(),
   insertCitationFloat: jest.fn(),
@@ -1153,7 +1153,7 @@ describe('createNewSlice,showReferences', () => {
       dispatch: jest.fn(),
       runtime: mockRuntime,
       docView: { node: { attrs: { objectId: 'sourceObj' } } },
-    } as unknown as EditorView;
+    };
     view = {
       state: {
         config: { pluginsByKey: { 'floating-menu$': plugin } },
@@ -1185,7 +1185,7 @@ describe('createNewSlice,showReferences', () => {
       dispatch: jest.fn(),
       runtime: mockRuntime,
       docView: { node: { attrs: { objectId: 'sourceObj' } } },
-    } as unknown as EditorView;
+    };
     jest.clearAllMocks();
   });
 
@@ -1384,7 +1384,7 @@ describe('changeAttribute', () => {
     expect(applyFn).toBeDefined();
     if (!applyFn) throw new Error('Plugin apply function is undefined');
 
-    const newPluginState = applyFn(tr as unknown as Transaction, prevPluginState, state, state);
+    const newPluginState = applyFn(tr, prevPluginState, state, state);
     expect(newPluginState).toBeDefined();
     expect(newPluginState?.decorations).toBeDefined();
   });
@@ -1465,7 +1465,7 @@ describe('openFloatingMenu', () => {
               return Promise.resolve({});
             },
           },
-        } as unknown as EditorView,
+        },
         1
       )
     ).toBeUndefined();
@@ -1631,7 +1631,7 @@ describe('openFloatingMenu - addAltRightClickHandler', () => {
   });
 
   it('should call openFloatingMenu on Alt + Right Click', () => {
-    addAltRightClickHandler(mockView as unknown as EditorView, mockPlugin);
+    addAltRightClickHandler(mockView, mockPlugin);
 
     const event = new MouseEvent('contextmenu', {
       bubbles: true,
@@ -1645,25 +1645,25 @@ describe('openFloatingMenu - addAltRightClickHandler', () => {
     const preventSpy = jest.spyOn(event, 'preventDefault');
     const stopSpy = jest.spyOn(event, 'stopPropagation');
 
-    (mockView as unknown as EditorView).dom.dispatchEvent(event);
+    (mockView).dom.dispatchEvent(event);
 
     expect(preventSpy).toHaveBeenCalled();
     expect(stopSpy).toHaveBeenCalled();
   });
 
   it('should NOT call openFloatingMenu if Alt not pressed', () => {
-    addAltRightClickHandler(mockView as unknown as EditorView, mockPlugin);
+    addAltRightClickHandler(mockView, mockPlugin);
 
     const event = new MouseEvent('contextmenu', { button: 2, altKey: false });
-    (mockView as unknown as EditorView).dom.dispatchEvent(event);
+    (mockView).dom.dispatchEvent(event);
 
     expect(openFloatingMenu).not.toHaveBeenCalled();
   });
 
   it('should NOT call openFloatingMenu if pos is null', () => {
-    addAltRightClickHandler(mockView as unknown as EditorView, mockPlugin);
+    addAltRightClickHandler(mockView, mockPlugin);
     const event = new MouseEvent('contextmenu', { button: 2, altKey: true });
-    (mockView as unknown as EditorView).dom.dispatchEvent(event);
+    (mockView).dom.dispatchEvent(event);
 
     expect(openFloatingMenu).not.toHaveBeenCalled();
   });
@@ -1903,7 +1903,7 @@ describe('pasteAsReference - Additional Coverage', () => {
       addInfoIcon: jest.fn(),
       addCitation: jest.fn(),
       insertReference: jest.fn(),
-    } as ReturnType<typeof createSliceManager>;
+    };
 
 
     await pasteAsReference(view, plugin);
@@ -2020,7 +2020,7 @@ describe('getDocSlices - Additional Coverage', () => {
       addCitation: jest.fn(),
       createSliceViaDialog: jest.fn(),
       insertReference: jest.fn(),
-    } as ReturnType<typeof createSliceManager>;
+    };
 
     await getDocSlices.call(plugin, view);
 
@@ -2206,7 +2206,7 @@ describe('Plugin state apply - Additional Coverage', () => {
     }
 
     const output = applyFn(
-      tr as unknown as Transaction,
+      tr,
       { decorations: prevDecorations },
       state,
       state.apply(tr)
@@ -2248,7 +2248,7 @@ describe('Plugin state apply - Additional Coverage', () => {
     }
 
     const output = applyFn(
-      tr as unknown as Transaction,
+      tr,
       { decorations: prevDecorations },
       state,
       state.apply(tr)
@@ -2982,7 +2982,7 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
     expect(applyFn).toBeDefined();
     if (!applyFn) throw new Error('Plugin apply function is undefined');
 
-    const output = applyFn(tr as unknown as Transaction, prevPluginState, state, state);
+    const output = applyFn(tr, prevPluginState, state, state);
 
     // map should be invoked (via prototype.map.call) or safe-guarded, and output should include decorations
     expect(output).toBeDefined();
@@ -3002,13 +3002,13 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
     const cmGetSpy = jest.spyOn(CMPluginKey, 'get').mockReturnValue(plugin);
     const schema = new Schema({
       nodes: {
-        doc: { content: 'paragraph+' } as NodeSpec,
+        doc: { content: 'paragraph+' },
         paragraph: {
           content: 'text*',
           parseDOM: [{ tag: 'p' }],
           toDOM: () => ['p', 0],
-        } as NodeSpec,
-        text: {} as NodeSpec,
+        },
+        text: {},
       },
     });
     const state = EditorState.create({ schema });
@@ -3038,13 +3038,13 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
 
     const schema = new Schema({
       nodes: {
-        doc: { content: 'paragraph+' } as NodeSpec,
+        doc: { content: 'paragraph+' },
         paragraph: {
           content: 'text*',
           parseDOM: [{ tag: 'p' }],
           toDOM: () => ['p', 0],
-        } as NodeSpec,
-        text: {} as NodeSpec,
+        },
+        text: {},
       },
     });
 
@@ -3065,8 +3065,8 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
 
   it('positionAboveOrBelow returns fallback when anchor undefined', () => {
     const r = positionAboveOrBelow(
-      undefined as unknown as { x: number; y: number; w: number; h: number },
-      undefined as unknown as { x: number; y: number; w: number; h: number }
+      undefined,
+      undefined
     );
 
     expect(r).toEqual({ x: 4, y: 4, w: 0, h: 0 });
@@ -3102,7 +3102,7 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
   --------------------------------------------- */
 
   it('getClosestHTMLElement returns null for non-element', () => {
-    expect(getClosestHTMLElement(null as unknown as EventTarget, '.x')).toBeNull();
+    expect(getClosestHTMLElement(null, '.x')).toBeNull();
   });
 
   it('getClosestHTMLElement returns null when no match', () => {
@@ -3147,7 +3147,7 @@ describe('FloatingMenuPlugin - focused branch coverage (fixed)', () => {
       },
     };
 
-    await getDocSlices.call(plugin, {} as object);
+    await getDocSlices.call(plugin, {});
 
     expect(plugin.sliceManager.getDocumentSlices).toHaveBeenCalled();
   });
@@ -3255,9 +3255,7 @@ describe('initKeyCommands()', () => {
     };
 
     for (const p of plugins) {
-      const handler = p.props?.handleKeyDown as
-        | ((view: FakeEditorView, event: KeyboardEvent) => boolean)
-        | undefined;
+      const handler = p.props?.handleKeyDown;
 
       if (!handler) continue;
 
