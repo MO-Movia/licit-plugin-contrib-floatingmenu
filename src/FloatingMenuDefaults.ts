@@ -8,18 +8,6 @@ import { FloatingMenuItem } from './model';
 export function getDefaultMenuItems(handlers): FloatingMenuItem[] {
   return [
     {
-      id: 'comment',
-      label: 'Add Comment',
-      isEnabled: handlers.enableCitationAndComment,
-      onClick: handlers.addComment,
-    },
-    {
-      id: 'tag',
-      label: 'Add Tag',
-      isEnabled: handlers.enableCitationAndComment,
-      onClick: handlers.addTag,
-    },
-    {
       id: 'citation',
       label: 'Create Citation',
       isEnabled: handlers.enableCitationAndComment,

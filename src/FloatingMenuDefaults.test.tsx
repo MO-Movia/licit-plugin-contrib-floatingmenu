@@ -37,8 +37,6 @@ describe('getDefaultMenuItems', () => {
     const labels = items.map((i) => i.label);
 
     expect(labels).toEqual([
-      'Add Comment',
-      'Add Tag',
       'Create Citation',
       'Create Infoicon',
       'Copy (Ctrl + C)',
@@ -80,8 +78,6 @@ describe('getDefaultMenuItems', () => {
   it('wires click handlers correctly', () => {
     const items = getDefaultMenuItems(handlers);
 
-    items.find((i) => i.id === 'comment').onClick();
-    items.find((i) => i.id === 'tag').onClick();
     items.find((i) => i.id === 'citation').onClick();
     items.find((i) => i.id === 'info').onClick();
     items.find((i) => i.id === 'copy').onClick();
@@ -92,8 +88,6 @@ describe('getDefaultMenuItems', () => {
     items.find((i) => i.id === 'slice').onClick();
     items.find((i) => i.id === 'insert-ref').onClick();
 
-    expect(handlers.addComment).toHaveBeenCalled();
-    expect(handlers.addTag).toHaveBeenCalled();
     expect(handlers.createCitation).toHaveBeenCalled();
     expect(handlers.createInfoIcon).toHaveBeenCalled();
     expect(handlers.copyRich).toHaveBeenCalled();

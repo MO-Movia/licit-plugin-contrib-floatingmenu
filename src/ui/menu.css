@@ -45,6 +45,12 @@
   gap: 4px;
 }
 
-.ProseMirror[contenteditable="false"] .pm-hamburger-wrapper {
+.ProseMirror[contenteditable='false'] .pm-hamburger-wrapper {
   display: none !important;
+}
+.ProseMirror p[hangingindent='true'] .pm-hamburger-wrapper {
+  position: absolute;
+  right: 0;
+  top: 0;
+  float: none;
 }
