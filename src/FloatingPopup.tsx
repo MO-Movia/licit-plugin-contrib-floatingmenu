@@ -21,7 +21,12 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps> {
       <div className="context-menu" role="menu">
         <div className="context-menu__items">
           {items.map((item, index) => {
-            const disabled = item.disabled ? item.disabled(context) : false;
+            let disabled: boolean | string | undefined = false;
+            try {
+              disabled = item.disabled?.(context);
+            } catch (error) {
+              disabled = String(error);
+            }
 
             return (
               <CustomButton

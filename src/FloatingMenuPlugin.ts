@@ -20,7 +20,7 @@ import {
 } from '@modusoperandi/licit-doc-attrs-step';
 import { getDefaultMenuItems } from './FloatingMenuDefaults';
 
-function stepAddsParagraph(content: unknown): boolean {
+export function stepAddsParagraph(content: unknown): boolean {
   if (!Array.isArray(content)) {
     return false;
   }
@@ -35,7 +35,7 @@ function stepAddsParagraph(content: unknown): boolean {
   });
 }
 
-function shouldRescanDecorations(tr: Transaction): boolean {
+export function shouldRescanDecorations(tr: Transaction): boolean {
   if (tr.getMeta(CMPluginKey)?.forceRescan) {
     return true;
   }
@@ -56,6 +56,72 @@ function shouldRescanDecorations(tr: Transaction): boolean {
 
     return stepAddsParagraph(serializedStep.slice?.content);
   });
+}
+
+export function createPointerDownHandler(
+  plugin: FloatingMenuPlugin,
+  view: EditorView,
+  menuItems: FloatingMenuItem[]
+): (e: PointerEvent) => void {
+  return (e: PointerEvent) => {
+    const targetEl = getClosestHTMLElement(e.target, '.float-icon');
+    if (!targetEl) return;
+
+    e.preventDefault();
+    e.stopPropagation();
+
+    const wrapper = getClosestHTMLElement(
+      targetEl,
+      '.pm-hamburger-wrapper'
+    );
+    wrapper?.classList.add('popup-open');
+
+    const pos = Number(targetEl.dataset.pos);
+    openFloatingMenu(plugin, view, menuItems, pos, targetEl);
+  };
+}
+
+export function createContextMenuHandler(
+  plugin: FloatingMenuPlugin,
+  view: EditorView,
+  menuItems: FloatingMenuItem[]
+): (e: MouseEvent) => void {
+  return (e: MouseEvent) => {
+    if (e.altKey && e.button === 2 && view.editable) {
+      e.preventDefault();
+      e.stopPropagation();
+
+      const pos = {
+        x: e ? e.clientX : 0,
+        y: e ? e.clientY : 0,
+      };
+
+      openFloatingMenu(
+        plugin,
+        view,
+        menuItems,
+        undefined,
+        undefined,
+        pos
+      );
+    }
+  };
+}
+
+export function createOutsideClickHandler(
+  plugin: FloatingMenuPlugin
+): (e: MouseEvent) => void {
+  return (e: MouseEvent) => {
+    const el = e.target as HTMLElement;
+    if (
+      plugin._popUpHandle &&
+      !el.closest('.context-menu') &&
+      !el.closest('.float-icon')
+    ) {
+      plugin._popUpHandle.close(null);
+      plugin._popUpHandle = null;
+    }
+  };
 }
 
 export class FloatingMenuPlugin extends Plugin {
@@ -112,59 +178,15 @@ export class FloatingMenuPlugin extends Plugin {
       view: (view) => {
         const plugin = this as FloatingMenuPlugin;
 
-        const pointerDownHandler = (e: PointerEvent) => {
-          const targetEl = getClosestHTMLElement(e.target, '.float-icon');
-          if (!targetEl) return;
-
-          e.preventDefault();
-          e.stopPropagation();
-
-          const wrapper = getClosestHTMLElement(
-            targetEl,
-            '.pm-hamburger-wrapper'
-          );
-          wrapper?.classList.add('popup-open');
-
-          const pos = Number(targetEl.dataset.pos);
-          openFloatingMenu(plugin, view, menuItems, pos, targetEl);
-        };
+        const pointerDownHandler = createPointerDownHandler(plugin, view, menuItems);
         view.dom.addEventListener('pointerdown', pointerDownHandler);
 
         // --- Alt + Right Click handler ---
-        const contextMenuHandler = (e: MouseEvent) => {
-          if (e.altKey && e.button === 2 && view.editable) {
-            e.preventDefault();
-            e.stopPropagation();
-
-            const pos = {
-              x: e ? e.clientX : 0,
-              y: e ? e.clientY : 0,
-            };
-
-            openFloatingMenu(
-              plugin,
-              view,
-              menuItems,
-              undefined,
-              undefined,
-              pos
-            );
-          }
-        };
+        const contextMenuHandler = createContextMenuHandler(plugin, view, menuItems);
         view.dom.addEventListener('contextmenu', contextMenuHandler);
 
         // --- Close popup on outside click ---
-        const outsideClickHandler = (e: MouseEvent) => {
-          const el = e.target as HTMLElement;
-          if (
-            plugin._popUpHandle &&
-            !el.closest('.context-menu') &&
-            !el.closest('.float-icon')
-          ) {
-            plugin._popUpHandle.close(null);
-            plugin._popUpHandle = null;
-          }
-        };
+        const outsideClickHandler = createOutsideClickHandler(plugin);
         document.addEventListener('click', outsideClickHandler);
         return {
           destroy() {
@@ -198,57 +220,62 @@ export class FloatingMenuPlugin extends Plugin {
 }
 
 // --- Decoration function ---
+export function createHamburgerWidget(pos: number, node: Node): Decoration {
+  return Decoration.widget(
+    pos + 1,
+    () => {
+      const wrapper = document.createElement('span');
+      wrapper.className = 'pm-hamburger-wrapper';
+
+      const hamburger = document.createElement('span');
+      hamburger.className = 'float-icon fa fa-bars';
+      hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
+      hamburger.dataset.pos = String(pos);
+
+      wrapper.appendChild(hamburger);
+      return wrapper;
+    },
+    {
+      key: `float-icon-${node.attrs?.objectId ?? pos}`,
+      side: 1,
+    }
+  );
+}
+
+export function createDecorationMarksWidget(pos: number, node: Node, decoFlags: Element[]): Decoration {
+  return Decoration.widget(
+    pos + 1,
+    () => {
+      const container = document.createElement('span');
+      container.style.position = 'absolute';
+      container.style.left = '27px';
+      container.style.display = 'inline-flex';
+      container.style.gap = '6px';
+      container.style.alignItems = 'center';
+      container.contentEditable = 'false';
+      container.style.userSelect = 'none';
+
+      decoFlags.forEach((decoFlag) => container.appendChild(decoFlag));
+
+      return container;
+    },
+    {
+      key: `float-marks-${node.attrs?.objectId ?? pos}`,
+      side: -1,
+    }
+  );
+}
+
 export function getDecorations(doc: Node, state: EditorState, decorationMarks?: ((node: Node, pos: number, state: EditorState) => Element | undefined)[]): DecorationSet {
   const decorations: Decoration[] = [];
 
   doc?.forEach((node: Node, pos: number) => {
     if (node.type.name !== 'paragraph') return;
-    decorations.push(
-      Decoration.widget(
-        pos + 1,
-        () => {
-          const wrapper = document.createElement('span');
-          wrapper.className = 'pm-hamburger-wrapper';
-
-          const hamburger = document.createElement('span');
-          hamburger.className = 'float-icon fa fa-bars';
-          hamburger.style.fontFamily = 'FontAwesome'; // for fa compatibility
-          hamburger.dataset.pos = String(pos);
-
-          wrapper.appendChild(hamburger);
-          return wrapper;
-        },
-        {
-          key: `float-icon-${node.attrs?.objectId ?? pos}`,
-          side: 1,
-        }
-      )
-    );
+    decorations.push(createHamburgerWidget(pos, node));
+    
     const decoFlags = decorationMarks?.map(fn => fn(node, pos, state)).filter(x => !!x);
     if (!decoFlags?.length) return;
-    decorations.push(
-      Decoration.widget(
-        pos + 1,
-        () => {
-          const container = document.createElement('span');
-          container.style.position = 'absolute';
-          container.style.left = '27px';
-          container.style.display = 'inline-flex';
-          container.style.gap = '6px';
-          container.style.alignItems = 'center';
-          container.contentEditable = 'false';
-          container.style.userSelect = 'none';
-
-          decoFlags.forEach((decoFlag) => container.appendChild(decoFlag));
-
-          return container;
-        },
-        {
-          key: `float-marks-${node.attrs?.objectId ?? pos}`,
-          side: -1,
-        }
-      )
-    );
+    decorations.push(createDecorationMarksWidget(pos, node, decoFlags));
   });
   return DecorationSet.create(state.doc, decorations);
 }
@@ -349,7 +376,7 @@ export function openFloatingMenu(
   );
 }
 
-function getClosestHTMLElement(
+export function getClosestHTMLElement(
   el: EventTarget | null,
   selector: string
 ): HTMLElement | null {

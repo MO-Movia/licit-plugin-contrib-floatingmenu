@@ -22,12 +22,12 @@
   opacity: 1;
 }
 
-.context-menu {   
+.context-menu {
   background: white;
   border: 1px solid #ccc;
   border-radius: 6px;
   padding: 6px 8px;
-  box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
   z-index: 10000;
 
   display: flex;
@@ -38,9 +38,15 @@
   min-height: 40px;
 }
 
-
 .context-menu__items {
   display: flex;
   flex-direction: column;
   gap: 4px;
+}
+
+.ProseMirror p[hangingindent='true'] .pm-hamburger-wrapper {
+  position: absolute;
+  right: 0;
+  top: 0;
+  float: none;
 }

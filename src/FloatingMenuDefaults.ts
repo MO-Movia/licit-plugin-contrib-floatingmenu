@@ -13,7 +13,8 @@ import {Slice} from 'prosemirror-model';
 import type {EditorState, Transaction} from 'prosemirror-state';
 
 export function editorHasTextSelection(this: void, ctx: FloatingMenuContext) {
-  return ctx?.editorView?.state?.selection?.empty
+  const selection = ctx?.editorView?.state?.selection;
+  return !selection || selection.empty
     ? 'No text selected'
     : undefined;
 }
@@ -51,7 +52,7 @@ export function getDefaultMenuItems(config?: MenuConfig): FloatingMenuItem[] {
   ];
 }
 
-export function copySelectionRich(
+export async function copySelectionRich(
   this: void,
   _state: EditorState,
   _dispatch: (tr: Transaction) => void,
@@ -71,13 +72,13 @@ export function copySelectionRich(
     sourceContext: createSourceContext(view),
   };
 
-  navigator.clipboard
+  return navigator.clipboard
     .writeText(JSON.stringify(sliceJSON))
     .then(() => {})
     .catch((err) => console.error('Clipboard write failed', err));
 }
 
-export function copySelectionPlain(
+export async function copySelectionPlain(
   this: void,
   _state: EditorState,
   _dispatch: (tr: Transaction) => void,
@@ -92,7 +93,7 @@ export function copySelectionPlain(
   const slice = view.state.doc.slice(from, to);
   const text = slice.content.textBetween(0, slice.content.size, '\n');
 
-  navigator.clipboard
+  return navigator.clipboard
     .writeText(text)
     .then(() => {})
     .catch((err) => console.error('Clipboard write failed:', err));
