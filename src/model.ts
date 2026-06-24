@@ -3,7 +3,7 @@
  * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
  */
 
-import {PluginKey, type EditorState, type Transaction} from 'prosemirror-state';
+import {PluginKey, type EditorState} from 'prosemirror-state';
 import type {EditorView} from 'prosemirror-view';
 import type {FloatingMenuPlugin} from './FloatingMenuPlugin';
 
@@ -24,17 +24,11 @@ export interface FloatingMenuContext {
   paragraphPos?: number;
 }
 
-export type FloatCommand = (
-  state: EditorState,
-  dispatch: (tr: Transaction) => void,
-  view: EditorView
-) => unknown;
-
 export interface FloatingMenuItem {
   /** Display label for the menu item */
   label: string;
   /** Action to perform when the menu item is clicked */
-  onClick: FloatCommand;
+  onClick: (ctx: FloatingMenuContext) => unknown;
   /** If the menu item should be disabled when menu is opened. Returns a string with the reason for being disabled. */
   disabled?: (ctx: FloatingMenuContext) => string | undefined | false;
   /** Optional hotkeys for the menu item */

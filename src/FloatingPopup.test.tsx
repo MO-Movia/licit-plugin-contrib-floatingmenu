@@ -189,11 +189,7 @@ describe('FloatingPopup', () => {
       fireEvent.click(copyButton);
 
       expect(mockClose).toHaveBeenCalled();
-      expect(mockOnClick).toHaveBeenCalledWith(
-        mockContext.editorView.state,
-        mockContext.editorView.dispatch,
-        mockContext.editorView
-      );
+      expect(mockOnClick).toHaveBeenCalledWith(mockContext);
     });
 
     it('should not call onClick when disabled item is clicked', () => {

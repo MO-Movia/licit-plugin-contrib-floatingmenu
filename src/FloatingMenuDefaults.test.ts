@@ -93,10 +93,9 @@ describe('FloatingMenuDefaults', () => {
   describe('copySelectionRich', () => {
     let mockView: Partial<EditorView>;
     let mockState: Partial<EditorState>;
-    let mockDispatch: jest.Mock;
+    let mockContext: FloatingMenuContext;
 
     beforeEach(() => {
-      mockDispatch = jest.fn();
       mockState = {
         selection: {
           empty: false,
@@ -128,6 +127,11 @@ describe('FloatingMenuDefaults', () => {
         hasFocus: jest.fn(() => true),
         focus: jest.fn(),
       };
+      mockContext = {
+        editorView: mockView as EditorView,
+        editorState: mockState as EditorState,
+        paragraphPos: 0,
+      };
       jest.clearAllMocks();
     });
 
@@ -142,7 +146,7 @@ describe('FloatingMenuDefaults', () => {
         clipboard: mockClipboard,
       });
       (mockView.state?.doc.nodesBetween as jest.Mock).mockImplementation(() => {});
-      await copySelectionRich(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await copySelectionRich(mockContext);
       expect(mockClipboard.writeText).toHaveBeenCalled();
     });
 
@@ -157,7 +161,7 @@ describe('FloatingMenuDefaults', () => {
         clipboard: mockClipboard,
       });
       mockView.hasFocus = jest.fn(() => false);
-      await copySelectionRich(mockState as EditorState, mockDispatch, mockView as EditorView).catch(() => undefined);
+      await copySelectionRich(mockContext).catch(() => undefined);
       expect(mockView.focus).toHaveBeenCalled();
     });
 
@@ -173,7 +177,7 @@ describe('FloatingMenuDefaults', () => {
       });
       (mockView.state?.doc.nodesBetween as jest.Mock).mockImplementation(() => {});
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-      await copySelectionRich(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await copySelectionRich(mockContext);
       expect(consoleSpy).toHaveBeenCalledWith('Clipboard write failed', expect.any(Error));
       consoleSpy.mockRestore();
     });
@@ -182,10 +186,9 @@ describe('FloatingMenuDefaults', () => {
   describe('copySelectionPlain', () => {
     let mockView: Partial<EditorView>;
     let mockState: Partial<EditorState>;
-    let mockDispatch: jest.Mock;
+    let mockContext: FloatingMenuContext;
 
     beforeEach(() => {
-      mockDispatch = jest.fn();
       mockState = {
         selection: {
           from: 0,
@@ -205,6 +208,11 @@ describe('FloatingMenuDefaults', () => {
         hasFocus: jest.fn(() => true),
         focus: jest.fn(),
       };
+      mockContext = {
+        editorView: mockView as EditorView,
+        editorState: mockState as EditorState,
+        paragraphPos: 0,
+      };
       jest.clearAllMocks();
     });
 
@@ -218,7 +226,7 @@ describe('FloatingMenuDefaults', () => {
       Object.assign(global.navigator, {
         clipboard: mockClipboard,
       });
-      await copySelectionPlain(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await copySelectionPlain(mockContext);
       expect(mockClipboard.writeText).toHaveBeenCalledWith('sample text');
     });
 
@@ -247,7 +255,9 @@ describe('FloatingMenuDefaults', () => {
         },
       } as unknown as EditorState;
       mockView.state = emptyState;
-      await copySelectionPlain(emptyState, mockDispatch, mockView as EditorView);
+      mockContext.editorView = mockView as EditorView;
+      mockContext.editorState = emptyState;
+      await copySelectionPlain(mockContext);
       expect(mockClipboard.writeText).not.toHaveBeenCalled();
     });
 
@@ -262,7 +272,7 @@ describe('FloatingMenuDefaults', () => {
         clipboard: mockClipboard,
       });
       mockView.hasFocus = jest.fn(() => false);
-      await copySelectionPlain(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await copySelectionPlain(mockContext);
       expect(mockView.focus).toHaveBeenCalled();
     });
 
@@ -278,7 +288,7 @@ describe('FloatingMenuDefaults', () => {
       });
       mockClipboard.writeText.mockRejectedValue(new Error('Clipboard error'));
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
-      await copySelectionPlain(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await copySelectionPlain(mockContext);
       expect(consoleSpy).toHaveBeenCalledWith('Clipboard write failed:', expect.any(Error));
       consoleSpy.mockRestore();
     });
@@ -289,6 +299,7 @@ describe('FloatingMenuDefaults', () => {
     let mockState: Partial<EditorState>;
     let mockDispatch: jest.Mock;
     let mockTr: Partial<Transaction>;
+    let mockContext: FloatingMenuContext;
 
     beforeEach(() => {
       mockTr = {
@@ -309,6 +320,11 @@ describe('FloatingMenuDefaults', () => {
         focus: jest.fn(),
         dispatch: mockDispatch,
       };
+      mockContext = {
+        editorView: mockView as EditorView,
+        editorState: mockState as EditorState,
+        paragraphPos: 0,
+      };
       jest.clearAllMocks();
     });
 
@@ -327,7 +343,7 @@ describe('FloatingMenuDefaults', () => {
         (mockState.tr as unknown as Record<string, unknown>).insertText = jest.fn(() => mockTr);
       }
       
-      await pasteFromClipboard(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteFromClipboard(mockContext);
       expect(mockState.tr?.insertText).toHaveBeenCalledWith('plain text', 0, 0);
       expect(mockDispatch).toHaveBeenCalled();
     });
@@ -356,7 +372,7 @@ describe('FloatingMenuDefaults', () => {
         (mockState.tr as unknown as Record<string, unknown>).replaceSelection = spy;
       }
       
-      await pasteFromClipboard(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteFromClipboard(mockContext);
       expect(spy).toHaveBeenCalled();
     });
 
@@ -376,7 +392,7 @@ describe('FloatingMenuDefaults', () => {
         (mockState.tr as unknown as Record<string, unknown>).insertText = jest.fn(() => mockTr);
       }
       
-      await pasteFromClipboard(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteFromClipboard(mockContext);
       expect(mockView.focus).toHaveBeenCalled();
     });
 
@@ -393,7 +409,7 @@ describe('FloatingMenuDefaults', () => {
       mockClipboard.readText.mockRejectedValue(new Error('Clipboard error'));
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       
-      await pasteFromClipboard(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteFromClipboard(mockContext);
       expect(consoleSpy).toHaveBeenCalledWith('Clipboard paste failed:', expect.any(Error));
       consoleSpy.mockRestore();
     });
@@ -404,6 +420,7 @@ describe('FloatingMenuDefaults', () => {
     let mockState: Partial<EditorState>;
     let mockDispatch: jest.Mock;
     let mockTr: Partial<Transaction>;
+    let mockContext: FloatingMenuContext;
 
     beforeEach(() => {
       mockTr = {
@@ -424,6 +441,11 @@ describe('FloatingMenuDefaults', () => {
         focus: jest.fn(),
         dispatch: mockDispatch,
       };
+      mockContext = {
+        editorView: mockView as EditorView,
+        editorState: mockState as EditorState,
+        paragraphPos: 0,
+      };
       jest.clearAllMocks();
     });
 
@@ -442,7 +464,7 @@ describe('FloatingMenuDefaults', () => {
         (mockState.tr as unknown as Record<string, unknown>).insertText = jest.fn(() => mockTr);
       }
       
-      await pasteAsPlainText(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteAsPlainText(mockContext);
       expect(mockState.tr?.insertText).toHaveBeenCalledWith('some text', 0, 0);
       expect(mockDispatch).toHaveBeenCalled();
     });
@@ -475,7 +497,7 @@ describe('FloatingMenuDefaults', () => {
         (mockState.tr as unknown as Record<string, unknown>).insertText = jest.fn(() => mockTr);
       }
       
-      await pasteAsPlainText(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteAsPlainText(mockContext);
       expect(mockState.tr?.insertText).toHaveBeenCalled();
       expect(mockFragment.forEach).toHaveBeenCalled();
     });
@@ -496,7 +518,7 @@ describe('FloatingMenuDefaults', () => {
         (mockState.tr as unknown as Record<string, unknown>).insertText = jest.fn(() => mockTr);
       }
       
-      await pasteAsPlainText(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteAsPlainText(mockContext);
       expect(mockView.focus).toHaveBeenCalled();
     });
 
@@ -513,7 +535,7 @@ describe('FloatingMenuDefaults', () => {
       mockClipboard.readText.mockRejectedValue(new Error('Error'));
       const consoleSpy = jest.spyOn(console, 'error').mockImplementation(() => {});
       
-      await pasteAsPlainText(mockState as EditorState, mockDispatch, mockView as EditorView);
+      await pasteAsPlainText(mockContext);
       expect(consoleSpy).toHaveBeenCalledWith('Plain text paste failed:', expect.any(Error));
       consoleSpy.mockRestore();
     });

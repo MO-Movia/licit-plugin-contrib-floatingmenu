@@ -37,11 +37,7 @@ export class FloatingMenu extends React.PureComponent<FloatingMenuProps> {
                 disabled={!!disabled}
                 onClick={() => {
                   close();
-                  item.onClick(
-                    context.editorView.state,
-                    context.editorView.dispatch,
-                    context.editorView
-                  );
+                  item.onClick(context);
                 }}
               />
             );

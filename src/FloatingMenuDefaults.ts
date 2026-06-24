@@ -10,7 +10,7 @@ import {
   type SourceContext,
 } from './model';
 import {Slice} from 'prosemirror-model';
-import type {EditorState, Transaction} from 'prosemirror-state';
+import type {Transaction} from 'prosemirror-state';
 
 export function editorHasTextSelection(this: void, ctx: FloatingMenuContext) {
   const selection = ctx?.editorView?.state?.selection;
@@ -52,13 +52,9 @@ export function getDefaultMenuItems(config?: MenuConfig): FloatingMenuItem[] {
   ];
 }
 
-export async function copySelectionRich(
-  this: void,
-  _state: EditorState,
-  _dispatch: (tr: Transaction) => void,
-  view: EditorView
-) {
-  const {state} = view;
+export async function copySelectionRich(this: void, ctx: FloatingMenuContext) {
+  const view = ctx.editorView;
+  const {state} = ctx.editorView;
   if (state.selection.empty) return;
 
   if (!view.hasFocus()) view.focus();
@@ -78,12 +74,8 @@ export async function copySelectionRich(
     .catch((err) => console.error('Clipboard write failed', err));
 }
 
-export async function copySelectionPlain(
-  this: void,
-  _state: EditorState,
-  _dispatch: (tr: Transaction) => void,
-  view: EditorView
-) {
+export async function copySelectionPlain(this: void, ctx: FloatingMenuContext) {
+  const view = ctx.editorView;
   if (!view.hasFocus()) {
     view.focus();
   }
@@ -99,12 +91,8 @@ export async function copySelectionPlain(
     .catch((err) => console.error('Clipboard write failed:', err));
 }
 
-export async function pasteFromClipboard(
-  this: void,
-  _state: EditorState,
-  _dispatch: (tr: Transaction) => void,
-  view: EditorView
-) {
+export async function pasteFromClipboard(this: void, ctx: FloatingMenuContext) {
+  const view = ctx.editorView;
   try {
     if (!view.hasFocus()) view.focus();
 
@@ -128,12 +116,8 @@ export async function pasteFromClipboard(
   }
 }
 
-export async function pasteAsPlainText(
-  this: void,
-  _state: EditorState,
-  _dispatch: (tr: Transaction) => void,
-  view: EditorView
-) {
+export async function pasteAsPlainText(this: void, ctx: FloatingMenuContext) {
+  const view = ctx.editorView;
   try {
     if (!view.hasFocus()) view.focus();
 
