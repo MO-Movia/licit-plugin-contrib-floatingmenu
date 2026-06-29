@@ -266,6 +266,9 @@ describe('copySelectionRich', () => {
 
     Object.assign(navigator, {
       clipboard: {
+        readText: jest.fn().mockResolvedValue(JSON.stringify({
+          sliceModel: { id: 'slice-1', source: 'doc-x', from: 'a' },
+        })),
         writeText: jest.fn().mockResolvedValue(undefined),
       },
     });
@@ -998,10 +1001,15 @@ describe('createNewSlice,showReferences', () => {
       state: {
         config: { pluginsByKey: { 'floating-menu$': null } },
         selection: {
-          $from: { start: jest.fn().mockReturnValue(0), depth: 0 },
+          $from: {
+            start: jest.fn().mockReturnValue(0),
+            before: jest.fn().mockReturnValue(0),
+            depth: 0,
+          },
           $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
         },
         doc: {
+          nodeAt: jest.fn().mockReturnValue({ attrs: {} }),
           nodesBetween: jest.fn((_from: number, _to: number, callback) => {
             // simulate one paragraph node
             callback(
@@ -1016,6 +1024,7 @@ describe('createNewSlice,showReferences', () => {
         },
         schema: {}, // can be left empty or minimal schema
         tr: {
+          setNodeMarkup: jest.fn().mockReturnThis(),
           replaceSelection: jest.fn(),
           insertText: jest.fn(),
           scrollIntoView: jest.fn().mockReturnThis(),
@@ -1030,10 +1039,15 @@ describe('createNewSlice,showReferences', () => {
       state: {
         config: { pluginsByKey: { 'floating-menu$': plugin } },
         selection: {
-          $from: { start: jest.fn().mockReturnValue(0), depth: 0 },
+          $from: {
+            start: jest.fn().mockReturnValue(0),
+            before: jest.fn().mockReturnValue(0),
+            depth: 0,
+          },
           $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
         },
         doc: {
+          nodeAt: jest.fn().mockReturnValue({ attrs: {} }),
           nodesBetween: jest.fn((_from: number, _to: number, callback) => {
             // simulate one paragraph node
             callback(
@@ -1048,6 +1062,7 @@ describe('createNewSlice,showReferences', () => {
         },
         schema: {}, // can be left empty or minimal schema
         tr: {
+          setNodeMarkup: jest.fn().mockReturnThis(),
           replaceSelection: jest.fn(),
           insertText: jest.fn(),
           scrollIntoView: jest.fn().mockReturnThis(),
@@ -1279,14 +1294,19 @@ describe('createNewSlice', () => {
       state: {
         config: { pluginsByKey: { 'floating-menu$': plugin } },
         selection: {
-          $from: { start: () => 0 },
+          $from: { start: () => 0, before: () => 0 },
           $to: { end: () => 1 },
         },
-        doc: { nodesBetween: jest.fn() },
+        doc: {
+          nodeAt: jest.fn().mockReturnValue({ attrs: {} }),
+          nodesBetween: jest.fn(),
+        },
+        tr: { setNodeMarkup: jest.fn().mockReturnThis() },
       },
       runtime: {
         createSlice: jest.fn().mockResolvedValue({}),
       },
+      dispatch: jest.fn(),
     } as unknown as EditorView;
 
     // Act
@@ -2959,6 +2979,7 @@ describe('initKeyCommands()', () => {
     depth: number;
     start: (depth: number) => number;
     end: (depth: number) => number;
+    before: (depth: number) => number;
   };
 
   type FakeEditorState = {
@@ -3008,6 +3029,7 @@ describe('initKeyCommands()', () => {
       depth: 1,
       start: () => 0,
       end: () => 5,
+      before: () => 0,
     };
 
     const fakeView: FakeEditorView = {
@@ -3084,6 +3106,14 @@ describe('initKeyCommands()', () => {
 
   it('handles PASTE REFERENCE shortcut', () => {
     const { plugin } = setup();
+    Object.assign(navigator, {
+      clipboard: {
+        readText: jest.fn().mockResolvedValue(JSON.stringify({
+          sliceModel: { id: 'slice-1', source: 'doc-x', from: 'a' },
+        })),
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
     const result = triggerKey(plugin, 'v', true);
     expect(result).toBe(true);
   });
