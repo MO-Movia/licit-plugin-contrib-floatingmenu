@@ -1,12 +1,24 @@
 /**
  * @license MIT
- * @copyright Copyright 2025 Modus Operandi Inc. All Rights Reserved.
+ * @copyright Copyright 2026 Modus Operandi Inc. All Rights Reserved.
  */
 
 import { FloatingMenuItem } from './model';
 
 export function getDefaultMenuItems(handlers): FloatingMenuItem[] {
   return [
+    {
+      id: 'comment',
+      label: 'Add Comment',
+      isEnabled: handlers.enableCitationAndComment,
+      onClick: handlers.addComment,
+    },
+    {
+      id: 'tag',
+      label: 'Add Tag',
+      isEnabled: handlers.enableCitationAndComment,
+      onClick: handlers.addTag,
+    },
     {
       id: 'citation',
       label: 'Create Citation',
@@ -26,22 +38,10 @@ export function getDefaultMenuItems(handlers): FloatingMenuItem[] {
       onClick: handlers.copyRich,
     },
     {
-      id: 'copy-plain',
-      label: 'Copy Without Formatting',
-      isEnabled: handlers.enableCopy,
-      onClick: handlers.copyPlain,
-    },
-    {
       id: 'paste',
       label: 'Paste (Ctrl + V)',
       isEnabled: handlers.enablePaste,
       onClick: handlers.paste,
-    },
-    {
-      id: 'paste-plain',
-      label: 'Paste As Plain Text',
-      isEnabled: handlers.enablePaste,
-      onClick: handlers.pastePlain,
     },
     {
       id: 'paste-ref',
