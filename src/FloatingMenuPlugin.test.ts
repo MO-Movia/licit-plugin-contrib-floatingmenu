@@ -5,7 +5,7 @@
 
 import { EditorState, TextSelection, Transaction } from 'prosemirror-state';
 
-import { DecorationSet, EditorView } from 'prosemirror-view';
+import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { Schema, Node } from 'prosemirror-model';
 import {
   FloatingMenuPlugin,
@@ -38,6 +38,12 @@ import * as licitCommands from '@modusoperandi/licit-ui-commands';
 import { FloatRuntime, SliceModel } from './model';
 import type * as FloatingMenuPluginModule from './FloatingMenuPlugin';
 import { createSliceManager } from './slice';
+
+type WidgetDecoration = Decoration & {
+  type: {
+    toDOM: () => HTMLElement;
+  };
+};
 
 // Mock external dependencies
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
@@ -917,9 +923,8 @@ describe('getDecorations', () => {
     const decorations = getDecorations(landscapeDoc, landscapeState);
 
     expect(decorations.find().length).toBe(1);
-    expect((decorations.find()[0] as any).type.toDOM().className).toBe(
-      'pm-hamburger-wrapper'
-    );
+    const decoration = decorations.find()[0] as WidgetDecoration;
+    expect(decoration.type.toDOM().className).toBe('pm-hamburger-wrapper');
   });
 
   it('creates hamburger when isSlice isTag false', () => {
