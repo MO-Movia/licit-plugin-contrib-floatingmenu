@@ -5,7 +5,7 @@
 
 import { EditorState, TextSelection, Transaction } from 'prosemirror-state';
 
-import { DecorationSet, EditorView } from 'prosemirror-view';
+import { Decoration, DecorationSet, EditorView } from 'prosemirror-view';
 import { Schema, Node } from 'prosemirror-model';
 import {
   FloatingMenuPlugin,
@@ -38,6 +38,12 @@ import * as licitCommands from '@modusoperandi/licit-ui-commands';
 import { FloatRuntime, SliceModel } from './model';
 import type * as FloatingMenuPluginModule from './FloatingMenuPlugin';
 import { createSliceManager } from './slice';
+
+type WidgetDecoration = Decoration & {
+  type: {
+    toDOM: () => HTMLElement;
+  };
+};
 
 // Mock external dependencies
 jest.mock('@modusoperandi/licit-ui-commands', () => ({
@@ -880,6 +886,47 @@ describe('getDecorations', () => {
     expect(decorations.find().length).toBeGreaterThan(0);
     expect(decorations.find()[0].spec.widget?.className).toBeUndefined();
   });
+
+  it('creates hamburger for a paragraph inside landscape section', () => {
+    const landscapeSchema = new Schema({
+      nodes: {
+        doc: { content: 'block+' },
+        landscape_section: {
+          content: 'block+',
+          group: 'block',
+          parseDOM: [{ tag: 'section.section-landscape' }],
+          toDOM: () => ['section', { class: 'section-landscape' }, 0],
+        },
+        paragraph: {
+          content: 'text*',
+          group: 'block',
+          parseDOM: [{ tag: 'p' }],
+          toDOM: () => ['p', 0],
+        },
+        text: { group: 'inline' },
+      },
+      marks: {},
+    });
+    const landscapeDoc = landscapeSchema.nodes.doc.create({}, [
+      landscapeSchema.nodes.landscape_section.create({}, [
+        landscapeSchema.nodes.paragraph.create(
+          {},
+          landscapeSchema.text('Landscape paragraph')
+        ),
+      ]),
+    ]);
+    const landscapeState = EditorState.create({
+      schema: landscapeSchema,
+      doc: landscapeDoc,
+    });
+
+    const decorations = getDecorations(landscapeDoc, landscapeState);
+
+    expect(decorations.find().length).toBe(1);
+    const decoration = decorations.find()[0] as WidgetDecoration;
+    expect(decoration.type.toDOM().className).toBe('pm-hamburger-wrapper');
+  });
+
   it('creates hamburger when isSlice isTag false', () => {
     const schema = new Schema({
       nodes: {
