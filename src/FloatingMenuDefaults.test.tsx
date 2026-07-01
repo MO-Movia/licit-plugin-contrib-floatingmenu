@@ -57,6 +57,15 @@ describe('getDefaultMenuItems', () => {
     });
   });
 
+  it('filters out menu items that do not define an onClick handler', () => {
+    const items = getDefaultMenuItems({
+      ...handlers,
+      showReferences: undefined,
+    });
+
+    expect(items.map((item) => item.id)).not.toContain('insert-ref');
+  });
+
   it('wires enable predicates correctly', () => {
     const items = getDefaultMenuItems(handlers);
 

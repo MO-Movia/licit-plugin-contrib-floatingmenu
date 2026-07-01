@@ -59,5 +59,5 @@ export function getDefaultMenuItems(handlers): FloatingMenuItem[] {
       label: 'Insert Reference',
       onClick: handlers.showReferences,
     },
-  ];
+  ].filter((item) => item.onClick !== undefined);
 }
