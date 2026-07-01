@@ -32,9 +32,7 @@ describe('FloatingMenu (UI)', () => {
       createCitation: jest.fn(),
       createInfoIcon: jest.fn(),
       copyRich: jest.fn(),
-      copyPlain: jest.fn(),
       paste: jest.fn(),
-      pastePlain: jest.fn(),
       pasteAsReference: jest.fn(),
       createSlice: jest.fn(),
       showReferences: jest.fn(),
@@ -67,19 +65,9 @@ describe('FloatingMenu (UI)', () => {
         onClick: handlers.copyRich,
       },
       {
-        id: 'copy-plain',
-        label: 'Copy Without Formatting',
-        onClick: handlers.copyPlain,
-      },
-      {
         id: 'paste',
         label: 'Paste (Ctrl + V)',
         onClick: handlers.paste,
-      },
-      {
-        id: 'paste-plain',
-        label: 'Paste As Plain Text',
-        onClick: handlers.pastePlain,
       },
       {
         id: 'paste-ref',
@@ -143,9 +131,7 @@ describe('FloatingMenu (UI)', () => {
       'Create Citation',
       'Create Infoicon',
       'Copy (Ctrl + C)',
-      'Copy Without Formatting',
       'Paste (Ctrl + V)',
-      'Paste As Plain Text',
       'Paste As Reference (Ctrl + Alt + V)',
       'Create Referent',
       'Insert Reference',
@@ -160,9 +146,7 @@ describe('FloatingMenu (UI)', () => {
     click('Create Citation');
     click('Create Infoicon');
     click('Copy (Ctrl + C)');
-    click('Copy Without Formatting');
     click('Paste (Ctrl + V)');
-    click('Paste As Plain Text');
     click('Paste As Reference (Ctrl + Alt + V)');
     click('Create Referent');
     click('Insert Reference');
@@ -172,9 +156,7 @@ describe('FloatingMenu (UI)', () => {
     expect(handlers.createCitation).toHaveBeenCalled();
     expect(handlers.createInfoIcon).toHaveBeenCalled();
     expect(handlers.copyRich).toHaveBeenCalled();
-    expect(handlers.copyPlain).toHaveBeenCalled();
     expect(handlers.paste).toHaveBeenCalled();
-    expect(handlers.pastePlain).toHaveBeenCalled();
     expect(handlers.pasteAsReference).toHaveBeenCalled();
     expect(handlers.createSlice).toHaveBeenCalled();
     expect(handlers.showReferences).toHaveBeenCalled();

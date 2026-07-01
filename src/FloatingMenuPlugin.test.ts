@@ -10,12 +10,10 @@ import { Schema, Node } from 'prosemirror-model';
 import {
   FloatingMenuPlugin,
   changeAttribute,
-  copySelectionPlain,
   copySelectionRich,
   createNewSlice,
   createSliceObject,
   getDecorations,
-  pasteAsPlainText,
   pasteAsReference,
   pasteFromClipboard,
   addAltRightClickHandler,
@@ -71,6 +69,14 @@ jest.mock('./slice', () => ({
   setSliceAtrrs: jest.fn(),
   createSliceManager: jest.fn(),
 }));
+
+Object.defineProperty(globalThis, 'crypto', {
+  value: {
+    ...globalThis.crypto,
+    randomUUID: jest.fn(() => 'test-uuid'),
+  },
+  configurable: true,
+});
 
 const mockRuntime: FloatRuntime = {
   createSlice: jest.fn().mockResolvedValue({}), // mock return value as needed
@@ -266,6 +272,9 @@ describe('copySelectionRich', () => {
 
     Object.assign(navigator, {
       clipboard: {
+        readText: jest.fn().mockResolvedValue(JSON.stringify({
+          sliceModel: { id: 'slice-1', source: 'doc-x', from: 'a' },
+        })),
         writeText: jest.fn().mockResolvedValue(undefined),
       },
     });
@@ -420,87 +429,6 @@ describe('createSliceObject', () => {
     expect(slice.id).toContain('http://modusoperandi.com/editor/instance/');
   });
 });
-describe('copySelectionPlain', () => {
-  let schema: Schema;
-  let doc: Node;
-  let state: EditorState;
-  let view: EditorView;
-  let plugin: FloatingMenuPlugin;
-
-  beforeEach(() => {
-    jest.clearAllMocks();
-
-    // Minimal schema
-    schema = new Schema({
-      nodes: {
-        doc: { content: 'paragraph+' },
-        paragraph: {
-          content: 'text*',
-          group: 'block',
-          parseDOM: [{ tag: 'p' }],
-          toDOM: () => ['p', 0],
-        },
-        text: { group: 'inline' },
-      },
-      marks: {},
-    });
-
-    const paragraph = schema.nodes.paragraph.create({}, schema.text(' SLICE '));
-    doc = schema.nodes.doc.create({}, [paragraph]);
-    state = EditorState.create({ schema, doc });
-    view = new EditorView(document.createElement('div'), { state });
-
-    // Spy focus
-    jest.spyOn(view, 'focus').mockImplementation(() => { });
-
-    plugin = new FloatingMenuPlugin(mockRuntime, urlConfig);
-    plugin._popUpHandle = { close: jest.fn(), update: jest.fn() };
-
-    // Mock clipboard
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: jest.fn().mockResolvedValue(undefined),
-      },
-    });
-  });
-
-  it('should return early if selection is empty', () => {
-    const sel = TextSelection.create(doc, 0, 0);
-    state = state.apply(state.tr.setSelection(sel));
-    view.updateState(state);
-
-    copySelectionPlain(view, plugin);
-
-    expect(navigator.clipboard.writeText).not.toHaveBeenCalled();
-    expect(view.focus).toHaveBeenCalled(); // focus is still called if not focused
-  });
-
-  it('should copy text to clipboard and close popup', () => {
-    const sel = TextSelection.create(doc, 0, 0);
-    state = state.apply(state.tr.setSelection(sel));
-    view.updateState(state);
-
-    copySelectionPlain(view, plugin);
-
-    expect(view.focus).toHaveBeenCalled();
-    expect(navigator.clipboard.writeText).toBeDefined();
-    expect(plugin._popUpHandle?.close).toBeDefined();
-    expect(plugin._popUpHandle).toHaveProperty('close');
-  });
-
-  it('should focus the view if not already focused', () => {
-    const sel = TextSelection.create(doc, 0, 0);
-    state = state.apply(state.tr.setSelection(sel));
-    view.updateState(state);
-
-    jest.spyOn(view, 'hasFocus').mockReturnValue(false);
-
-    copySelectionPlain(view, plugin);
-
-    expect(view.focus).toHaveBeenCalled();
-  });
-});
-
 describe('pasteFromClipboard', () => {
   let schema: Schema;
   let doc: Node;
@@ -741,59 +669,6 @@ describe('FloatingMenuPlugin clipboard paste helpers', () => {
     consoleErrorSpy.mockRestore();
   });
 
-  /** pasteAsPlainText tests **/
-
-  it('should paste JSON slice as plain text', async () => {
-    const sliceJSON = {
-      type: 'doc',
-      content: [{ type: 'paragraph', content: [{ type: 'text', text: 'Hi' }] }],
-    };
-    (navigator.clipboard.readText as jest.Mock).mockResolvedValue(
-      JSON.stringify(sliceJSON)
-    );
-
-    // Spy on focus and dispatch
-    jest.spyOn(view, 'focus');
-    jest.spyOn(view, 'dispatch');
-
-    await pasteAsPlainText(view, plugin);
-
-    expect(view.focus).toHaveBeenCalled();
-    expect(view.dispatch).toHaveBeenCalled();
-    expect(plugin._popUpHandle?.close).toBeUndefined();
-    expect(plugin._popUpHandle).toBeNull();
-  });
-
-  it('should paste plain text if clipboard is not JSON', async () => {
-    (navigator.clipboard.readText as jest.Mock).mockResolvedValue(
-      'Hello World'
-    );
-
-    // Spy on dispatch so Jest can track it
-    jest.spyOn(view, 'dispatch');
-
-    await pasteAsPlainText(view, plugin);
-
-    expect(view.dispatch).toHaveBeenCalled();
-    expect(plugin._popUpHandle?.close).toBeUndefined();
-  });
-
-  it('should handle clipboard read failure gracefully', async () => {
-    (navigator.clipboard.readText as jest.Mock).mockRejectedValue(
-      new Error('fail')
-    );
-    const consoleErrorSpy = jest
-      .spyOn(console, 'error')
-      .mockImplementation(() => { });
-
-    await pasteAsPlainText(view, plugin);
-
-    expect(consoleErrorSpy).toHaveBeenCalledWith(
-      'Plain text paste failed:',
-      expect.any(Error)
-    );
-    consoleErrorSpy.mockRestore();
-  });
 });
 
 describe('clipboardHasProseMirrorData', () => {
@@ -1173,10 +1048,15 @@ describe('createNewSlice,showReferences', () => {
       state: {
         config: { pluginsByKey: { 'floating-menu$': null } },
         selection: {
-          $from: { start: jest.fn().mockReturnValue(0), depth: 0 },
+          $from: {
+            start: jest.fn().mockReturnValue(0),
+            before: jest.fn().mockReturnValue(0),
+            depth: 0,
+          },
           $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
         },
         doc: {
+          nodeAt: jest.fn().mockReturnValue({ attrs: {} }),
           nodesBetween: jest.fn((_from: number, _to: number, callback) => {
             // simulate one paragraph node
             callback(
@@ -1191,6 +1071,7 @@ describe('createNewSlice,showReferences', () => {
         },
         schema: {}, // can be left empty or minimal schema
         tr: {
+          setNodeMarkup: jest.fn().mockReturnThis(),
           replaceSelection: jest.fn(),
           insertText: jest.fn(),
           scrollIntoView: jest.fn().mockReturnThis(),
@@ -1205,10 +1086,15 @@ describe('createNewSlice,showReferences', () => {
       state: {
         config: { pluginsByKey: { 'floating-menu$': plugin } },
         selection: {
-          $from: { start: jest.fn().mockReturnValue(0), depth: 0 },
+          $from: {
+            start: jest.fn().mockReturnValue(0),
+            before: jest.fn().mockReturnValue(0),
+            depth: 0,
+          },
           $to: { end: jest.fn().mockReturnValue(1), depth: 0 },
         },
         doc: {
+          nodeAt: jest.fn().mockReturnValue({ attrs: {} }),
           nodesBetween: jest.fn((_from: number, _to: number, callback) => {
             // simulate one paragraph node
             callback(
@@ -1223,6 +1109,7 @@ describe('createNewSlice,showReferences', () => {
         },
         schema: {}, // can be left empty or minimal schema
         tr: {
+          setNodeMarkup: jest.fn().mockReturnThis(),
           replaceSelection: jest.fn(),
           insertText: jest.fn(),
           scrollIntoView: jest.fn().mockReturnThis(),
@@ -1454,14 +1341,19 @@ describe('createNewSlice', () => {
       state: {
         config: { pluginsByKey: { 'floating-menu$': plugin } },
         selection: {
-          $from: { start: () => 0 },
+          $from: { start: () => 0, before: () => 0 },
           $to: { end: () => 1 },
         },
-        doc: { nodesBetween: jest.fn() },
+        doc: {
+          nodeAt: jest.fn().mockReturnValue({ attrs: {} }),
+          nodesBetween: jest.fn(),
+        },
+        tr: { setNodeMarkup: jest.fn().mockReturnThis() },
       },
       runtime: {
         createSlice: jest.fn().mockResolvedValue({}),
       },
+      dispatch: jest.fn(),
     } as unknown as EditorView;
 
     // Act
@@ -2306,48 +2198,7 @@ describe('Plugin state apply - Additional Coverage', () => {
   });
 });
 
-describe('copySelectionPlain - Additional Coverage', () => {
-  it('should handle clipboard write failure', async () => {
-    const schema = new Schema({
-      nodes: {
-        doc: { content: 'paragraph+' },
-        paragraph: {
-          content: 'text*',
-          group: 'block',
-          parseDOM: [{ tag: 'p' }],
-          toDOM: () => ['p', 0],
-        },
-        text: { group: 'inline' },
-      },
-    });
 
-    const doc = schema.nodes.doc.create({}, [
-      schema.nodes.paragraph.create({}, schema.text('test')),
-    ]);
-    const state = EditorState.create({ schema, doc });
-    const view = new EditorView(document.createElement('div'), { state });
-    const plugin = new FloatingMenuPlugin({} as FloatRuntime, urlConfig);
-
-    const consoleErrorSpy = jest.spyOn(console, 'error').mockImplementation();
-
-    // Mock clipboard to reject
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: jest.fn().mockRejectedValue(new Error('Write failed')),
-      },
-    });
-
-    const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
-    view.updateState(view.state.apply(tr));
-
-    copySelectionPlain(view, plugin);
-    await Promise.resolve(); // ✅ Wait for async .catch() to run
-
-    expect(consoleErrorSpy).not.toHaveBeenCalled();
-
-    consoleErrorSpy.mockRestore();
-  });
-});
 /**
  * Additional tests to achieve 100% function coverage
  * Add these tests to your existing test file
@@ -2517,44 +2368,6 @@ describe('copySelectionRich - Error Handling', () => {
     const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
     view.updateState(view.state.apply(tr));
     copySelectionRich(view, plugin);
-    expect(navigator.clipboard.writeText).toHaveBeenCalled();
-  });
-});
-
-describe('copySelectionPlain - Error Handling', () => {
-  let schema: Schema;
-  let view: EditorView;
-  let plugin: FloatingMenuPlugin;
-
-  beforeEach(() => {
-    schema = new Schema({
-      nodes: {
-        doc: { content: 'paragraph+' },
-        paragraph: { content: 'text*', group: 'block', toDOM: () => ['p', 0] },
-        text: { group: 'inline' },
-      },
-      marks: {},
-    });
-
-    const doc = schema.nodes.doc.create({}, [
-      schema.nodes.paragraph.create({}, schema.text('Test')),
-    ]);
-
-    const state = EditorState.create({ schema, doc });
-    view = new EditorView(document.createElement('div'), { state });
-    plugin = new FloatingMenuPlugin(mockRuntime, urlConfig);
-  });
-
-  it('should handle successful clipboard write', () => {
-    Object.assign(navigator, {
-      clipboard: {
-        writeText: jest.fn().mockResolvedValue(undefined),
-      },
-    });
-
-    const tr = view.state.tr.setSelection(TextSelection.create(view.state.doc, 0, 4));
-    view.updateState(view.state.apply(tr));
-    copySelectionPlain(view, plugin);
     expect(navigator.clipboard.writeText).toHaveBeenCalled();
   });
 });
@@ -3213,6 +3026,7 @@ describe('initKeyCommands()', () => {
     depth: number;
     start: (depth: number) => number;
     end: (depth: number) => number;
+    before: (depth: number) => number;
   };
 
   type FakeEditorState = {
@@ -3246,7 +3060,7 @@ describe('initKeyCommands()', () => {
   function triggerKey(
     plugin: unknown,
     key: string,
-    shift = false
+    alt = false
   ): boolean {
     type KeymapPlugin = {
       props?: {
@@ -3262,6 +3076,7 @@ describe('initKeyCommands()', () => {
       depth: 1,
       start: () => 0,
       end: () => 5,
+      before: () => 0,
     };
 
     const fakeView: FakeEditorView = {
@@ -3309,7 +3124,7 @@ describe('initKeyCommands()', () => {
       const event = new KeyboardEvent('keydown', {
         key,
         ctrlKey: true,
-        shiftKey: shift,
+        altKey: alt,
       });
 
       if (handler(fakeView, event)) return true;
@@ -3333,11 +3148,19 @@ describe('initKeyCommands()', () => {
   it('handles PASTE shortcut', () => {
     const { plugin } = setup();
     const result = triggerKey(plugin, 'v');
-    expect(result).toBe(true);
+    expect(result).toBe(false);
   });
 
   it('handles PASTE REFERENCE shortcut', () => {
     const { plugin } = setup();
+    Object.assign(navigator, {
+      clipboard: {
+        readText: jest.fn().mockResolvedValue(JSON.stringify({
+          sliceModel: { id: 'slice-1', source: 'doc-x', from: 'a' },
+        })),
+        writeText: jest.fn().mockResolvedValue(undefined),
+      },
+    });
     const result = triggerKey(plugin, 'v', true);
     expect(result).toBe(true);
   });
@@ -3380,35 +3203,6 @@ describe('Function Coverage - Uncovered Lines', () => {
     });
   });
 
-  describe('copySelectionPlain popup close (Lines 295-296)', () => {
-    it('should close popup and set to null after copying', () => {
-      const doc = schema.nodes.doc.create({}, [
-        schema.nodes.paragraph.create({}, schema.text('Test content')),
-      ]);
-      const newState = EditorState.create({ schema, doc });
-      view.updateState(newState);
-
-      // Set selection
-      const tr = view.state.tr.setSelection(
-        TextSelection.create(view.state.doc, 0, 5)
-      );
-      view.updateState(view.state.apply(tr));
-
-      // Create popup handle
-      const closeSpy = jest.fn();
-      plugin._popUpHandle = {
-        close: closeSpy,
-        update: jest.fn(),
-      };
-
-      copySelectionPlain(view, plugin);
-
-      // Verify close was called and handle is null
-      expect(closeSpy).toHaveBeenCalledWith(null);
-      expect(plugin._popUpHandle).toBeNull();
-    });
-  });
-
   // These are tested by directly calling the functions that use them
   describe('Default menu item callbacks (Lines 567-581)', () => {
     it('should execute enable and action callbacks via getDefaultMenuItems', async () => {
@@ -3437,9 +3231,7 @@ describe('Function Coverage - Uncovered Lines', () => {
         enableCitationAndComment: () => !view.state.selection.empty,
         enableTagAndInfoicon: () => true,
         copyRich: () => copySelectionRich(view, plugin),
-        copyPlain: () => copySelectionPlain(view, plugin),
         paste: () => pasteFromClipboard(view, plugin),
-        pastePlain: () => pasteAsPlainText(view, plugin),
         pasteAsReference: () => pasteAsReference(view, plugin),
         createCitation: () => createCitationHandler(view),
         createInfoIcon: () => createInfoIconHandler(view),
@@ -3473,24 +3265,6 @@ describe('Function Coverage - Uncovered Lines', () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalled();
     });
 
-    it('should invoke copyPlain callback', () => {
-      const doc = schema.nodes.doc.create({}, [
-        schema.nodes.paragraph.create({}, schema.text('Test')),
-      ]);
-      const newState = EditorState.create({ schema, doc });
-      view.updateState(newState);
-      const tr = view.state.tr.setSelection(
-        TextSelection.create(view.state.doc, 0, 4)
-      );
-      view.updateState(view.state.apply(tr));
-
-      jest.spyOn(view, 'focus').mockImplementation(() => { });
-
-      copySelectionPlain(view, plugin);
-
-      expect(navigator.clipboard.writeText).toHaveBeenCalled();
-    });
-
     it('should invoke paste callback', async () => {
       (navigator.clipboard.readText as jest.Mock).mockResolvedValue('text');
 
@@ -3499,18 +3273,6 @@ describe('Function Coverage - Uncovered Lines', () => {
       view.dispatch = dispatchSpy;
 
       await pasteFromClipboard(view, plugin);
-
-      expect(dispatchSpy).toHaveBeenCalled();
-    });
-
-    it('should invoke pastePlain callback', async () => {
-      (navigator.clipboard.readText as jest.Mock).mockResolvedValue('text');
-
-      // Mock dispatch properly
-      const dispatchSpy = jest.fn();
-      view.dispatch = dispatchSpy;
-
-      await pasteAsPlainText(view, plugin);
 
       expect(dispatchSpy).toHaveBeenCalled();
     });
@@ -3746,9 +3508,7 @@ describe('Extracted Functions for Testability', () => {
       expect(callbacks.enableCitationAndComment).toBeDefined();
       expect(callbacks.enableTagAndInfoicon).toBeDefined();
       expect(callbacks.copyRich).toBeDefined();
-      expect(callbacks.copyPlain).toBeDefined();
       expect(callbacks.paste).toBeDefined();
-      expect(callbacks.pastePlain).toBeDefined();
       expect(callbacks.pasteAsReference).toBeDefined();
       expect(callbacks.createCitation).toBeDefined();
       expect(callbacks.createInfoIcon).toBeDefined();
@@ -3825,22 +3585,6 @@ describe('Extracted Functions for Testability', () => {
       expect(navigator.clipboard.writeText).toHaveBeenCalled();
     });
 
-    it('should execute copyPlain callback', () => {
-      const doc = schema.nodes.doc.create({}, [
-        schema.nodes.paragraph.create({}, schema.text('Test')),
-      ]);
-      const newState = EditorState.create({ schema, doc });
-      view.updateState(newState);
-      const tr = view.state.tr.setSelection(
-        TextSelection.create(view.state.doc, 0, 4)
-      );
-      view.updateState(view.state.apply(tr));
-
-      const callbacks = createMenuCallbacks(view, plugin);
-      callbacks.copyPlain();
-
-      expect(navigator.clipboard.writeText).toHaveBeenCalled();
-    });
   });
 
   describe('closeExistingPopup (Line 554)', () => {
