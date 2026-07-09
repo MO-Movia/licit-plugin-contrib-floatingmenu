@@ -22,9 +22,7 @@ describe('getDefaultMenuItems', () => {
       createCitation: jest.fn(),
       createInfoIcon: jest.fn(),
       copyRich: jest.fn(),
-      copyPlain: jest.fn(),
       paste: jest.fn(),
-      pastePlain: jest.fn(),
       pasteAsReference: jest.fn(),
       createSlice: jest.fn(),
       showReferences: jest.fn(),
@@ -37,12 +35,12 @@ describe('getDefaultMenuItems', () => {
     const labels = items.map((i) => i.label);
 
     expect(labels).toEqual([
+      'Add Comment',
+      'Add Tag',
       'Create Citation',
       'Create Infoicon',
       'Copy (Ctrl + C)',
-      'Copy Without Formatting',
       'Paste (Ctrl + V)',
-      'Paste As Plain Text',
       'Paste As Reference (Ctrl + Alt + V)',
       'Create Referent',
       'Insert Reference',
@@ -57,6 +55,15 @@ describe('getDefaultMenuItems', () => {
       expect(item.label).toBeDefined();
       expect(typeof item.onClick).toBe('function');
     });
+  });
+
+  it('filters out menu items that do not define an onClick handler', () => {
+    const items = getDefaultMenuItems({
+      ...handlers,
+      showReferences: undefined,
+    });
+
+    expect(items.map((item) => item.id)).not.toContain('insert-ref');
   });
 
   it('wires enable predicates correctly', () => {
@@ -78,22 +85,22 @@ describe('getDefaultMenuItems', () => {
   it('wires click handlers correctly', () => {
     const items = getDefaultMenuItems(handlers);
 
+    items.find((i) => i.id === 'comment').onClick();
+    items.find((i) => i.id === 'tag').onClick();
     items.find((i) => i.id === 'citation').onClick();
     items.find((i) => i.id === 'info').onClick();
     items.find((i) => i.id === 'copy').onClick();
-    items.find((i) => i.id === 'copy-plain').onClick();
     items.find((i) => i.id === 'paste').onClick();
-    items.find((i) => i.id === 'paste-plain').onClick();
     items.find((i) => i.id === 'paste-ref').onClick();
     items.find((i) => i.id === 'slice').onClick();
     items.find((i) => i.id === 'insert-ref').onClick();
 
+    expect(handlers.addComment).toHaveBeenCalled();
+    expect(handlers.addTag).toHaveBeenCalled();
     expect(handlers.createCitation).toHaveBeenCalled();
     expect(handlers.createInfoIcon).toHaveBeenCalled();
     expect(handlers.copyRich).toHaveBeenCalled();
-    expect(handlers.copyPlain).toHaveBeenCalled();
     expect(handlers.paste).toHaveBeenCalled();
-    expect(handlers.pastePlain).toHaveBeenCalled();
     expect(handlers.pasteAsReference).toHaveBeenCalled();
     expect(handlers.createSlice).toHaveBeenCalled();
     expect(handlers.showReferences).toHaveBeenCalled();
